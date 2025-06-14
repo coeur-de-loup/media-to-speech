@@ -1,6 +1,6 @@
 # Task ID: 4
 # Title: Implement Job Worker: Media Type Detection and Conversion (uv/FastAPI Environment)
-# Status: pending
+# Status: done
 # Dependencies: 3
 # Priority: high
 # Description: Worker process to detect media type and convert to 16-bit PCM WAV if necessary using FFmpeg, within the FastAPI/uv environment.
@@ -16,37 +16,37 @@
 - Integration test: process various audio/video formats and verify output WAV.
 
 # Subtasks:
-## 1. Integrate FFprobe for Media Metadata Extraction [pending]
+## 1. Integrate FFprobe for Media Metadata Extraction [done]
 ### Dependencies: None
 ### Description: Set up and implement FFprobe integration to extract metadata from media files before conversion.
 ### Details:
 This involves invoking FFprobe, parsing its output, and making the metadata available for subsequent processing steps.
 
-## 2. Implement FFmpeg Conversion Logic [pending]
+## 2. Implement FFmpeg Conversion Logic [done]
 ### Dependencies: 4.1
 ### Description: Develop the logic to convert media files using FFmpeg based on extracted metadata and desired output formats.
 ### Details:
 This includes constructing FFmpeg command-line calls, handling process execution, and managing conversion parameters.
 
-## 3. Design and Implement File Storage Management [pending]
+## 3. Design and Implement File Storage Management [done]
 ### Dependencies: 4.2
 ### Description: Create mechanisms for storing, retrieving, and organizing input and output media files.
 ### Details:
 This covers file system interactions, directory structure, naming conventions, and cleanup of temporary files.
 
-## 4. Integrate Redis for State Updates [pending]
+## 4. Integrate Redis for State Updates [done]
 ### Dependencies: 4.3
 ### Description: Set up Redis to track and update the state of media processing tasks throughout the workflow.
 ### Details:
 This includes defining state keys, updating progress, and handling error states in Redis.
 
-## 5. Implement Progress Publishing Mechanism [pending]
+## 5. Implement Progress Publishing Mechanism [done]
 ### Dependencies: 4.4
 ### Description: Develop a system to publish conversion progress updates to interested clients or services.
 ### Details:
 This may involve using Redis pub/sub, WebSockets, or other messaging systems to broadcast progress information.
 
-## 6. Develop Comprehensive Test Coverage [pending]
+## 6. Develop Comprehensive Test Coverage [done]
 ### Dependencies: 4.5
 ### Description: Write and execute tests to ensure all components function correctly and handle edge cases.
 ### Details:

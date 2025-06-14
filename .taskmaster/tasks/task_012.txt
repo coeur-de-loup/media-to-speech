@@ -1,6 +1,6 @@
 # Task ID: 12
 # Title: Implement Health, Readiness, and Metrics Endpoints with FastAPI
-# Status: pending
+# Status: done
 # Dependencies: 1
 # Priority: medium
 # Description: Expose /healthz, /readyz, and /metrics endpoints using FastAPI for orchestration and observability.
@@ -16,31 +16,31 @@
 - Integration test: simulate dependency failures and verify readiness/metrics.
 
 # Subtasks:
-## 1. Implement /healthz Endpoint [pending]
+## 1. Implement /healthz Endpoint [done]
 ### Dependencies: None
 ### Description: Create the /healthz endpoint to report basic application health status.
 ### Details:
 Develop an HTTP endpoint (/healthz) that returns a simple success response if the application is running.
 
-## 2. Implement /readyz Checks [pending]
+## 2. Implement /readyz Checks [done]
 ### Dependencies: 12.1
 ### Description: Develop the /readyz endpoint to verify readiness, including checks for dependencies.
 ### Details:
 Create an HTTP endpoint (/readyz) that performs checks on external dependencies (e.g., database, cache) and returns readiness status.
 
-## 3. Implement /metrics Endpoint [pending]
+## 3. Implement /metrics Endpoint [done]
 ### Dependencies: 12.1
 ### Description: Expose application metrics via a /metrics endpoint for observability.
 ### Details:
 Add a /metrics endpoint that provides Prometheus-compatible metrics about the application's performance and resource usage.
 
-## 4. Integrate Docker HEALTHCHECK [pending]
+## 4. Integrate Docker HEALTHCHECK [done]
 ### Dependencies: 12.1
 ### Description: Configure Dockerfile to use HEALTHCHECK with the /healthz endpoint.
 ### Details:
 Update the Dockerfile to include a HEALTHCHECK instruction that periodically queries the /healthz endpoint to determine container health.
 
-## 5. Develop and Execute Test Scenarios [pending]
+## 5. Develop and Execute Test Scenarios [done]
 ### Dependencies: 12.1, 12.2, 12.3, 12.4
 ### Description: Create and run tests to validate /healthz, /readyz, /metrics endpoints, and Docker HEALTHCHECK integration.
 ### Details:

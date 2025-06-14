@@ -1,6 +1,6 @@
 # Task ID: 5
 # Title: Implement WAV Chunking Logic (uv/FastAPI Environment)
-# Status: pending
+# Status: done
 # Dependencies: 4
 # Priority: high
 # Description: Split the WAV file into ≤ 25 MB chunks using FFmpeg and store them in /tmp/{job-id}/, ensuring compatibility with the FastAPI/uv stack.
@@ -15,31 +15,31 @@
 - Integration test: chunk various WAV files and verify chunk sizes and count.
 
 # Subtasks:
-## 1. Implement Chunking Command [pending]
+## 1. Implement Chunking Command [done]
 ### Dependencies: None
 ### Description: Develop the core command to split files into chunks based on a specified size.
 ### Details:
 Create a command-line or API interface that accepts a file and chunk size, then processes the file into multiple chunks.
 
-## 2. Add Chunk Size Validation [pending]
+## 2. Add Chunk Size Validation [done]
 ### Dependencies: 5.1
 ### Description: Ensure the chunk size provided is valid and handle edge cases.
 ### Details:
 Implement checks to verify that the chunk size is a positive integer and does not exceed file size or system limits.
 
-## 3. Implement Chunk File Tracking [pending]
+## 3. Implement Chunk File Tracking [done]
 ### Dependencies: 5.2
 ### Description: Track and manage the generated chunk files for each processed input.
 ### Details:
 Maintain metadata or a manifest file that records the names, sizes, and order of chunk files.
 
-## 4. Integrate Redis Progress Updates [pending]
+## 4. Integrate Redis Progress Updates [done]
 ### Dependencies: 5.3
 ### Description: Update Redis with progress information as files are chunked.
 ### Details:
 Send progress updates (e.g., percentage complete, current chunk) to a Redis instance for monitoring.
 
-## 5. Test with Various Files [pending]
+## 5. Test with Various Files [done]
 ### Dependencies: 5.4
 ### Description: Perform testing using files of different sizes and types to ensure robustness.
 ### Details:

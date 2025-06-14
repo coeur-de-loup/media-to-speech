@@ -1,23 +1,26 @@
 # Task ID: 1
 # Title: Setup Project Repository and Docker Environment with uv and FastAPI
-# Status: pending
+# Status: done
 # Dependencies: None
 # Priority: high
-# Description: Initialize the project repository, set up Dockerfile, and configure the base environment for the microservice using 'uv' as the Python dependency manager and FastAPI as the API framework.
+# Description: Initialize the project repository, set up Dockerfile, and configure the base environment for the microservice using 'uv' as the Python dependency manager and FastAPI as the API framework. Use Docker Compose to orchestrate three containers: one for the FastAPI application, one for Redis (job state management), and one for FFmpeg (media processing). Remove any JWT authentication setup.
 # Details:
 - Initialize a git repository and create a project structure (src, tests, Docker, etc.).
 - Use 'uv' to manage Python dependencies; create pyproject.toml and requirements files as needed.
-- Write a Dockerfile that installs Python 3.11+, FFmpeg, Redis client, and sets up 'uv' and FastAPI.
-- Ensure Dockerfile includes HEALTHCHECK directive for orchestration.
+- Write a Dockerfile for the FastAPI API container that installs Python 3.11+, sets up 'uv' and FastAPI.
+- Use Docker Compose to define three services: FastAPI API, Redis (official image), and FFmpeg (official image).
+- Ensure Docker Compose sets up appropriate networking and environment variables for inter-container communication.
 - Add .dockerignore and .gitignore files.
 - Use environment variables for secrets (OpenAI key, Redis URL).
 - Scaffold FastAPI application entrypoint (e.g., main.py) and ensure it is used as the API server.
+- Remove any JWT authentication configuration.
 
 # Test Strategy:
-- Build Docker image and run container.
-- Validate that FFmpeg and Redis CLI are available in the container.
-- Check that healthcheck endpoint is reachable.
+- Build Docker image for the API and run all containers using Docker Compose.
+- Validate that the FastAPI container can communicate with Redis and FFmpeg containers.
+- Check that healthcheck endpoint is reachable from the API container.
 - Confirm FastAPI application starts and responds to root or /healthz endpoint.
+- Ensure Redis and FFmpeg containers are running and accessible from the API container.
 
 # Subtasks:
 ## 1. Initialize Git Repository [done]
@@ -26,33 +29,45 @@
 ### Details:
 Run 'git init' in the project directory and make the initial commit.
 
-## 2. Create Project Structure [in-progress]
+## 2. Create Project Structure [done]
 ### Dependencies: 1.1
 ### Description: Establish the necessary folders and files for the project.
 ### Details:
 Create directories such as 'src', 'tests', and any other required folders. Add placeholder files as needed.
 
-## 3. Write Dockerfile [pending]
+## 3. Write Dockerfile for FastAPI API Container [done]
 ### Dependencies: 1.2
-### Description: Create a Dockerfile to define the application's container image.
+### Description: Create a Dockerfile specifically for the FastAPI API container.
 ### Details:
-Write a Dockerfile specifying the base image, copying files, installing dependencies, and setting the entrypoint.
+Write a Dockerfile specifying the base image (Python 3.11+), copying files, installing dependencies with 'uv', and setting the entrypoint for FastAPI. Do not include FFmpeg or Redis installation here, as these will be separate containers.
 
-## 4. Add .dockerignore and .gitignore Files [pending]
+## 4. Add .dockerignore and .gitignore Files [done]
 ### Dependencies: 1.2
 ### Description: Create .dockerignore and .gitignore files to exclude unnecessary files from Docker builds and Git commits.
 ### Details:
 List files and directories to ignore in both .dockerignore and .gitignore according to best practices.
 
-## 5. Configure Environment Variables [pending]
+## 5. Configure Environment Variables [done]
 ### Dependencies: 1.3, 1.4
 ### Description: Set up environment variable configuration for the project.
 ### Details:
-Create a .env file or similar mechanism to manage environment variables and ensure they are referenced in the Dockerfile and application code.
+Create a .env file or similar mechanism to manage environment variables and ensure they are referenced in the Dockerfile, docker-compose.yml, and application code.
 
-## 6. Implement Docker HEALTHCHECK [pending]
+## 6. Implement Docker HEALTHCHECK [done]
 ### Dependencies: 1.3, 1.5
 ### Description: Add a HEALTHCHECK instruction to the Dockerfile to monitor container health.
 ### Details:
-Define a HEALTHCHECK command in the Dockerfile that verifies the application is running correctly.
+Define a HEALTHCHECK command in the Dockerfile that verifies the FastAPI application is running correctly.
+
+## 7. Create docker-compose.yml for Multi-Container Setup [done]
+### Dependencies: 1.3, 1.4
+### Description: Define a Docker Compose configuration to orchestrate the FastAPI API, Redis, and FFmpeg containers.
+### Details:
+Write a docker-compose.yml file that sets up three services: 1) FastAPI API (using the custom Dockerfile), 2) Redis (official image), 3) FFmpeg (official image). Configure networking and environment variables for inter-container communication.
+
+## 8. Remove JWT Authentication Configuration [done]
+### Dependencies: 1.2
+### Description: Ensure that no JWT authentication setup or dependencies remain in the project.
+### Details:
+Remove any JWT-related code, configuration, or dependencies from the project structure and documentation.
 

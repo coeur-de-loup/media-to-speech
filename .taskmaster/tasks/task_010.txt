@@ -1,6 +1,6 @@
 # Task ID: 10
 # Title: Implement GET /jobs/{id} Endpoint (Polling and Streaming) with FastAPI
-# Status: pending
+# Status: done
 # Dependencies: 9
 # Priority: high
 # Description: Expose FastAPI endpoint to poll job status or stream updates via SSE/WebSocket, mirroring Redis messages.
@@ -16,37 +16,37 @@
 - Integration test: confirm FastAPI endpoint is accessible without authentication.
 
 # Subtasks:
-## 1. Implement Polling Endpoint [pending]
+## 1. Implement Polling Endpoint [done]
 ### Dependencies: None
 ### Description: Create a RESTful polling endpoint to allow clients to periodically request updates from the server.
 ### Details:
 Design and implement an HTTP endpoint that clients can poll for updates. Ensure it supports efficient data retrieval and handles client state.
 
-## 2. Add Server-Sent Events (SSE) Support [pending]
+## 2. Add Server-Sent Events (SSE) Support [done]
 ### Dependencies: 10.1
 ### Description: Integrate SSE to enable real-time one-way communication from server to client.
 ### Details:
 Implement an SSE endpoint that streams updates to clients as events occur. Ensure proper event formatting and connection management.
 
-## 3. Integrate WebSocket Support [pending]
+## 3. Integrate WebSocket Support [done]
 ### Dependencies: 10.2
 ### Description: Enable full-duplex communication between server and client using WebSockets.
 ### Details:
 Set up a WebSocket server endpoint, handle connection upgrades, and manage message broadcasting to connected clients.
 
-## 4. Implement JSON Patch Streaming [pending]
+## 4. Implement JSON Patch Streaming [done]
 ### Dependencies: 10.3
 ### Description: Stream JSON Patch updates to clients for efficient state synchronization.
 ### Details:
 Generate and transmit JSON Patch (RFC 6902) operations over SSE and WebSocket connections to minimize data transfer.
 
-## 5. Handle Disconnect and Reconnect Scenarios [pending]
+## 5. Handle Disconnect and Reconnect Scenarios [done]
 ### Dependencies: 10.4
 ### Description: Ensure robust handling of client disconnects and reconnections across all communication protocols.
 ### Details:
 Implement logic to detect disconnects, resume sessions, and synchronize missed updates upon client reconnection.
 
-## 6. Develop Comprehensive Testing Suite [pending]
+## 6. Develop Comprehensive Testing Suite [done]
 ### Dependencies: 10.5
 ### Description: Create tests to verify functionality, protocol compliance, and edge cases for all communication methods.
 ### Details:

@@ -1,6 +1,6 @@
 # Task ID: 6
 # Title: Implement Parallel, Rate-Limited OpenAI Transcription Dispatch (uv/FastAPI Environment)
-# Status: pending
+# Status: done
 # Dependencies: 5
 # Priority: high
 # Description: Send chunked WAV files to OpenAI’s Speech-to-Text endpoint in parallel, respecting QPS and handling retries, using the FastAPI/uv stack.
@@ -17,43 +17,43 @@
 - Integration test: simulate rate limits, network errors, and verify retries and progress reporting.
 
 # Subtasks:
-## 1. Async/Thread Pool Setup [pending]
+## 1. Async/Thread Pool Setup [done]
 ### Dependencies: None
 ### Description: Establish an asynchronous execution environment or thread pool to handle concurrent tasks efficiently.
 ### Details:
 Choose between asyncio, threading, or multiprocessing based on the workload. Initialize the pool and ensure it can scale with the number of tasks.
 
-## 2. Rate Limiter Implementation [pending]
+## 2. Rate Limiter Implementation [done]
 ### Dependencies: 6.1
 ### Description: Implement a rate limiter to control the frequency of outgoing requests and prevent exceeding API quotas.
 ### Details:
 Use token bucket, leaky bucket, or similar algorithms to enforce rate limits. Integrate with the async/thread pool setup.
 
-## 3. OpenAI API Integration [pending]
+## 3. OpenAI API Integration [done]
 ### Dependencies: 6.1, 6.2
 ### Description: Integrate the OpenAI API for processing input data chunks within the concurrency and rate limiting constraints.
 ### Details:
 Set up authentication, request formatting, and response parsing for the OpenAI API. Ensure compatibility with the async/thread pool and rate limiter.
 
-## 4. Retry/Backoff Logic [pending]
+## 4. Retry/Backoff Logic [done]
 ### Dependencies: 6.3
 ### Description: Implement retry and exponential backoff mechanisms for handling transient API failures.
 ### Details:
 Detect errors such as timeouts or rate limit breaches and apply retries with exponential backoff to improve reliability.
 
-## 5. Per-Chunk Result Storage [pending]
+## 5. Per-Chunk Result Storage [done]
 ### Dependencies: 6.3
 ### Description: Store results for each processed data chunk in a reliable and scalable manner.
 ### Details:
 Design a storage solution (e.g., database, file system) to persist results as they are returned from the API.
 
-## 6. Redis Progress Updates [pending]
+## 6. Redis Progress Updates [done]
 ### Dependencies: 6.5
 ### Description: Update progress information in Redis to enable real-time monitoring and recovery.
 ### Details:
 Push progress updates to Redis after each chunk is processed and stored, including status and error information if applicable.
 
-## 7. Error Handling [pending]
+## 7. Error Handling [done]
 ### Dependencies: 6.4, 6.6
 ### Description: Implement comprehensive error handling to manage failures gracefully and ensure system robustness.
 ### Details:

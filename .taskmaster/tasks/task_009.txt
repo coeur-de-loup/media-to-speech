@@ -1,6 +1,6 @@
 # Task ID: 9
 # Title: Implement Redis State Management and Pub/Sub for Job Progress (uv/FastAPI Environment)
-# Status: pending
+# Status: done
 # Dependencies: 3
 # Priority: high
 # Description: Persist job state, progress, and errors in Redis keys and publish updates to Redis stream for real-time subscription, using the FastAPI/uv stack.
@@ -16,37 +16,37 @@
 - Integration test: subscribe to stream and verify real-time updates.
 
 # Subtasks:
-## 1. Redis Schema Design [pending]
+## 1. Redis Schema Design [done]
 ### Dependencies: None
 ### Description: Design the Redis data structures to efficiently store and retrieve application data, considering keys, data types, and relationships.
 ### Details:
 Define the schema for entities, indexes, and relationships using Redis data types such as hashes, sets, sorted sets, and streams.
 
-## 2. State, Progress, and Error Handling [pending]
+## 2. State, Progress, and Error Handling [done]
 ### Dependencies: 9.1
 ### Description: Implement mechanisms to track task state, progress, and error information within Redis.
 ### Details:
 Define fields and structures to represent task states (e.g., pending, running, completed, failed), progress metrics, and error logs.
 
-## 3. Stream Publishing [pending]
+## 3. Stream Publishing [done]
 ### Dependencies: 9.2
 ### Description: Set up Redis Streams to publish real-time updates about task state changes and events.
 ### Details:
 Configure stream keys, message formats, and consumer groups for real-time notification and event-driven processing.
 
-## 4. Atomic Updates [pending]
+## 4. Atomic Updates [done]
 ### Dependencies: 9.1, 9.2
 ### Description: Ensure all state changes and data modifications are performed atomically to prevent race conditions and maintain consistency.
 ### Details:
 Utilize Redis transactions, Lua scripts, or other atomic operations to update multiple keys or fields safely.
 
-## 5. Crash Recovery [pending]
+## 5. Crash Recovery [done]
 ### Dependencies: 9.2, 9.4
 ### Description: Design and implement strategies to recover from crashes and ensure data integrity and consistency after failures.
 ### Details:
 Develop mechanisms to detect incomplete operations, replay or rollback transactions, and restore correct state after a crash.
 
-## 6. Test Coverage [pending]
+## 6. Test Coverage [done]
 ### Dependencies: 9.1, 9.2, 9.3, 9.4, 9.5
 ### Description: Develop comprehensive tests to validate schema correctness, atomicity, stream publishing, error handling, and crash recovery.
 ### Details:

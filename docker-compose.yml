@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # API Service - FastAPI application
+  api:
+    build: .
+    container_name: media-to-text-api
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - FFMPEG_CONTAINER_URL=http://ffmpeg:8080
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEBUG=false
+      - TEMP_DIR=/tmp/media-to-text
+    volumes:
+      - media_storage:/tmp/media-to-text
+      - ./data:/app/data:ro  # Mount for input files
+    depends_on:
+      - redis
+      - ffmpeg
+    networks:
+      - media-to-text-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis Service - Job state management and pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: media-to-text-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - media-to-text-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+  # FFmpeg Service - Media processing
+  ffmpeg:
+    image: jrottenberg/ffmpeg:4.4-alpine
+    container_name: media-to-text-ffmpeg
+    volumes:
+      - media_storage:/tmp/media-to-text
+      - ./data:/app/data:ro  # Mount for input files
+    networks:
+      - media-to-text-network
+    restart: unless-stopped
+    # Keep container running to accept processing requests
+    command: tail -f /dev/null
+    healthcheck:
+      test: ["CMD", "ffmpeg", "-version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  media-to-text-network:
+    driver: bridge
+    name: media-to-text-network
+
+volumes:
+  redis_data:
+    name: media-to-text-redis-data
+  media_storage:
+    name: media-to-text-storage
