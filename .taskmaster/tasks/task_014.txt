@@ -18,19 +18,19 @@
 - Integration test: confirm all FastAPI endpoints are accessible without authentication.
 
 # Subtasks:
-## 1. Unit Test Development [in-progress]
+## 1. Unit Test Development [done]
 ### Dependencies: None
 ### Description: Develop unit tests for individual components and functions to ensure correctness at the smallest level.
 ### Details:
 Identify core modules and write unit tests using the chosen testing framework. Ensure high coverage of critical logic.
 
-## 2. Integration Test Scenarios [pending]
+## 2. Integration Test Scenarios [done]
 ### Dependencies: 14.1
 ### Description: Design and implement integration tests to verify interactions between multiple components.
 ### Details:
 Define key integration points and create test cases that simulate real-world interactions between modules.
 
-## 3. Load Test Setup [pending]
+## 3. Load Test Setup [in-progress]
 ### Dependencies: 14.2
 ### Description: Set up load testing to evaluate system performance under expected and peak loads.
 ### Details:

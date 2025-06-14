@@ -879,7 +879,7 @@
           "description": "Develop unit tests for individual components and functions to ensure correctness at the smallest level.",
           "dependencies": [],
           "details": "Identify core modules and write unit tests using the chosen testing framework. Ensure high coverage of critical logic.",
-          "status": "in-progress"
+          "status": "done"
         },
         {
           "id": 2,
@@ -889,7 +889,7 @@
             1
           ],
           "details": "Define key integration points and create test cases that simulate real-world interactions between modules.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 3,
@@ -899,7 +899,7 @@
             2
           ],
           "details": "Select load testing tools, define load profiles, and configure scripts to simulate concurrent users and requests.",
-          "status": "pending"
+          "status": "in-progress"
         },
         {
           "id": 4,
