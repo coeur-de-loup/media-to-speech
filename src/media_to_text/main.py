@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from media_to_text.config import Settings
+from media_to_text.logging import setup_logging, get_logger, LoggingMiddleware
 from media_to_text.routers import transcriptions, jobs, health
 from media_to_text.services.redis_service import init_redis_service, close_redis_service, get_redis_service
 from media_to_text.services.job_worker import init_job_worker, close_job_worker
@@ -17,58 +18,74 @@ from media_to_text.services.cleanup_service import init_cleanup_service
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
-    # Startup
-    print("Starting media-to-text microservice...")
-    
-    # Initialize services
+    # Initialize settings first
     settings = Settings()
     
+    # Setup structured logging as early as possible
+    setup_logging(
+        log_level=settings.log_level,
+        enable_axiom=settings.enable_axiom,
+        axiom_token=settings.axiom_token,
+        axiom_dataset=settings.axiom_dataset
+    )
+    
+    logger = get_logger("startup")
+    logger.info("Starting media-to-text microservice", version="0.1.0")
+    
+    # Initialize services
     try:
         # Initialize Redis service
+        logger.info("Initializing Redis service", redis_url=settings.redis_url)
         redis_service = await init_redis_service(settings)
-        print("✅ Redis service initialized successfully")
+        logger.info("Redis service initialized successfully")
         
         # Initialize cleanup service
+        logger.info("Initializing cleanup service")
         cleanup_service = await init_cleanup_service(settings, redis_service)
-        print("✅ Cleanup service initialized successfully")
+        logger.info("Cleanup service initialized successfully")
         
         # Initialize job worker
+        logger.info("Initializing job worker")
         job_worker = await init_job_worker(settings, redis_service)
         
         # Connect cleanup service to job worker
         await job_worker.set_cleanup_service(cleanup_service)
-        print("✅ Job worker initialized with cleanup service")
+        logger.info("Job worker initialized with cleanup service")
         
         # Run initial maintenance cycle to clean up any orphaned files
         try:
-            await cleanup_service.run_maintenance_cycle()
+            logger.info("Running initial cleanup maintenance cycle")
+            maintenance_stats = await cleanup_service.run_maintenance_cycle()
+            logger.info("Initial cleanup maintenance completed", **maintenance_stats)
         except Exception as e:
-            print(f"⚠️  Warning: Initial cleanup maintenance failed: {e}")
+            logger.warning("Initial cleanup maintenance failed", error=str(e))
         
     except Exception as e:
-        print(f"❌ Failed to initialize services: {e}")
+        logger.error("Failed to initialize services", error=str(e))
         raise
     
-    print("🚀 Application startup complete")
+    logger.info("Application startup complete")
     
     yield
     
     # Shutdown
-    print("Shutting down media-to-text microservice...")
+    logger.info("Shutting down media-to-text microservice")
     
     try:
         # Close job worker first
+        logger.info("Closing job worker")
         await close_job_worker()
-        print("✅ Job worker closed successfully")
+        logger.info("Job worker closed successfully")
         
         # Close Redis service
+        logger.info("Closing Redis service")
         await close_redis_service()
-        print("✅ Redis service closed successfully")
+        logger.info("Redis service closed successfully")
         
     except Exception as e:
-        print(f"⚠️  Error during shutdown: {e}")
+        logger.warning("Error during shutdown", error=str(e))
     
-    print("🛑 Application shutdown complete")
+    logger.info("Application shutdown complete")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -85,6 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url="/redoc",
         openapi_url="/openapi.json"
     )
+
+    # Add logging middleware for request tracing (add this first)
+    app.add_middleware(LoggingMiddleware)
 
     # Add CORS middleware
     app.add_middleware(
@@ -115,6 +135,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/")
     async def root():
         """Root endpoint with service information."""
+        logger = get_logger("api")
+        logger.info("Root endpoint accessed")
+        
         return {
             "service": "media-to-text",
             "version": "0.1.0",
@@ -132,13 +155,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "Real-time progress updates via Redis streams",
                     "Timestamp normalization and transcript aggregation",
                     "Enhanced job cleanup and resource management",
-                    "Redis-based job management with crash recovery"
+                    "Redis-based job management with crash recovery",
+                    "Structured logging with Axiom integration",
+                    "Request tracing and observability"
                 ]
             },
             "endpoints": {
                 "transcriptions": "/transcriptions",
                 "jobs": "/jobs",
-                "health": "/healthz"
+                "health": "/healthz",
+                "metrics": "/metrics"
+            },
+            "logging": {
+                "structured": settings.enable_structured_logging,
+                "axiom_enabled": settings.enable_axiom,
+                "log_level": settings.log_level
             }
         }
 
@@ -153,6 +184,21 @@ if __name__ == "__main__":
     import uvicorn
     
     settings = Settings()
+    
+    # Setup logging for CLI run
+    setup_logging(
+        log_level=settings.log_level,
+        enable_axiom=settings.enable_axiom,
+        axiom_token=settings.axiom_token,
+        axiom_dataset=settings.axiom_dataset
+    )
+    
+    logger = get_logger("cli")
+    logger.info("Starting development server", 
+                host=settings.api_host, 
+                port=settings.api_port,
+                debug=settings.debug)
+    
     uvicorn.run(
         "media_to_text.main:app",
         host=settings.api_host,

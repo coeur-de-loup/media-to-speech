@@ -1,0 +1,43 @@
+# Task ID: 16
+# Title: Migrate Logging to structlog with Axiom Integration and Request Tracing
+# Status: done
+# Dependencies: 12
+# Priority: high
+# Description: Replace all print statements and standard logging with structlog, configure an Axiom handler for centralized log aggregation, implement structured logging with request tracing, and set up log levels for observability.
+# Details:
+1. Refactor all code to remove print statements and standard logging, replacing them with structlog calls using structured event dictionaries. 2. Configure structlog to use an Axiom log handler, ensuring logs are sent to the correct Axiom dataset (obtain API keys and dataset info from environment variables or config). 3. Implement request tracing by injecting a unique trace ID into each request context (e.g., via FastAPI middleware), and ensure this trace ID is included in all log events for that request. 4. Set up log level configuration via environment variables, supporting at least DEBUG, INFO, WARNING, and ERROR levels. 5. Ensure all FastAPI endpoints, background workers, and error handlers use structured logging. 6. Document the logging setup and provide examples for developers. 7. Ensure sensitive data is not logged. 8. Update Docker and deployment configs to include Axiom credentials and log level settings.
+
+# Test Strategy:
+1. Run the application and verify that all logs are structured JSON objects and sent to the configured Axiom dataset. 2. Trigger requests and confirm that each log event includes a consistent trace ID for the request. 3. Change log levels via environment variables and verify that log output respects the configured level. 4. Simulate errors and verify that error logs are structured and sent to Axiom. 5. Review Axiom dashboard to confirm log ingestion and correct field mapping (trace ID, log level, message, etc.). 6. Ensure no print statements or standard logging calls remain in the codebase. 7. Review code and logs to confirm that no sensitive data is present in log events.
+
+# Subtasks:
+## 1. Refactor Logging to Use structlog [done]
+### Dependencies: None
+### Description: Replace all print statements and standard logging calls in the codebase with structlog, ensuring structured event dictionaries are used.
+### Details:
+Identify all instances of print and standard logging, and refactor them to use structlog with structured event dictionaries for consistency and improved log parsing.
+
+## 2. Configure structlog with Axiom Handler [done]
+### Dependencies: 16.1
+### Description: Set up structlog to use an Axiom log handler, ensuring logs are sent to the correct Axiom dataset using credentials from environment variables or configuration files.
+### Details:
+Integrate the Axiom handler into structlog configuration, retrieve API keys and dataset information from environment variables or config, and verify connectivity to Axiom.
+
+## 3. Implement Request Tracing with Trace IDs [done]
+### Dependencies: 16.1
+### Description: Inject a unique trace ID into each request context (e.g., via FastAPI middleware) and ensure this trace ID is included in all log events for that request.
+### Details:
+Develop middleware to generate and attach a trace ID to each request, and modify logging calls to include the trace ID in the structured log output.
+
+## 4. Set Up Log Level Configuration and Sensitive Data Filtering [done]
+### Dependencies: 16.2, 16.3
+### Description: Enable log level configuration via environment variables (supporting DEBUG, INFO, WARNING, and ERROR), and ensure sensitive data is not logged.
+### Details:
+Implement log level controls in the logging configuration and add filters or processors to prevent sensitive data from being included in logs.
+
+## 5. Update Application Integration and Documentation [done]
+### Dependencies: 16.4
+### Description: Ensure all FastAPI endpoints, background workers, and error handlers use structured logging, update Docker and deployment configs for Axiom credentials and log level settings, and provide developer documentation with examples.
+### Details:
+Audit all application components for structured logging usage, update deployment configurations, and write clear documentation and usage examples for developers.
+

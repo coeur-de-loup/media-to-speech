@@ -1,0 +1,88 @@
+# Prometheus Configuration for Media-to-Text Microservice
+# Monitors API metrics, Redis, and system performance
+
+global:
+  scrape_interval: 15s              # Set the scrape interval to every 15 seconds
+  evaluation_interval: 15s          # Evaluate rules every 15 seconds
+  external_labels:
+    environment: 'docker-compose'
+    project: 'media-to-text'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'
+# rule_files:
+#   - "first_rules.yml"
+#   - "second_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config
+  
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    
+  # Scrape Media-to-Text API metrics
+  - job_name: 'media-to-text-api'
+    static_configs:
+      - targets: ['api:9090']
+    scrape_interval: 15s
+    metrics_path: /metrics/prometheus
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: api:9090
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'media_to_text_.*'
+        action: keep
+
+  # Scrape Media-to-Text API health endpoint (converted to metrics)
+  - job_name: 'media-to-text-health'
+    static_configs:
+      - targets: ['api:8000']
+    scrape_interval: 30s
+    metrics_path: /healthz
+    scrape_timeout: 5s
+    
+  # Redis metrics via redis_exporter (if available)
+  # Uncomment if you add redis_exporter to your stack
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis_exporter:9121']
+  #   scrape_interval: 30s
+  #   metrics_path: /metrics
+
+  # Optional: Docker container metrics via cAdvisor
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']
+  #   scrape_interval: 30s
+  #   metrics_path: /metrics
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 15d
+    retention.size: 10GB
+    
+# Web console configuration  
+web:
+  console.libraries: /etc/prometheus/console_libraries
+  console.templates: /etc/prometheus/consoles

@@ -1,24 +1,79 @@
 version: '3.8'
 
+# Media-to-Text Microservice - Multi-Container Setup
+# This docker-compose.yml orchestrates three main services:
+# 1. API Service (FastAPI with uv dependency management)
+# 2. Redis Service (Job state management and pub/sub)
+# 3. FFmpeg Service (Media processing)
+
 services:
-  # API Service - FastAPI application
+  # ===========================
+  # API Service - FastAPI Application
+  # ===========================
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: media-to-text-api
+    hostname: api
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
+      - "${METRICS_PORT:-9090}:9090"  # Metrics endpoint
     environment:
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=${DEBUG:-false}
+      
+      # OpenAI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      - OPENAI_MAX_CHUNK_SIZE_MB=${OPENAI_MAX_CHUNK_SIZE_MB:-25}
+      - OPENAI_MAX_PARALLEL_REQUESTS=${OPENAI_MAX_PARALLEL_REQUESTS:-8}
+      
+      # Redis Configuration
       - REDIS_URL=redis://redis:6379
-      - FFMPEG_CONTAINER_URL=http://ffmpeg:8080
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - DEBUG=false
+      - REDIS_TTL_DAYS=${REDIS_TTL_DAYS:-7}
+      - REDIS_JOBS_PREFIX=${REDIS_JOBS_PREFIX:-jobs}
+      
+      # File Processing Configuration
       - TEMP_DIR=/tmp/media-to-text
+      - CLEANUP_TEMP_FILES=${CLEANUP_TEMP_FILES:-true}
+      
+      # FFmpeg Configuration
+      - FFMPEG_CONTAINER_URL=http://ffmpeg:8080
+      
+      # Monitoring Configuration
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - METRICS_PORT=9090
+      
+      # Logging Configuration
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENABLE_STRUCTURED_LOGGING=${ENABLE_STRUCTURED_LOGGING:-true}
+      - ENABLE_AXIOM=${ENABLE_AXIOM:-false}
+      - AXIOM_TOKEN=${AXIOM_TOKEN:-}
+      - AXIOM_DATASET=${AXIOM_DATASET:-media-to-text-logs}
+      - LOG_SENSITIVE_DATA=${LOG_SENSITIVE_DATA:-false}
     volumes:
+      # Shared storage for media files and processing
       - media_storage:/tmp/media-to-text
-      - ./data:/app/data:ro  # Mount for input files
+      # Mount workspace for file access
+      - type: bind
+        source: .
+        target: /workspace
+        read_only: true
+      # Optional: Mount external data directory
+      - type: bind
+        source: ${DATA_DIR:-./data}
+        target: /app/data
+        read_only: true
+        bind:
+          create_host_path: true
     depends_on:
-      - redis
-      - ffmpeg
+      redis:
+        condition: service_healthy
+      ffmpeg:
+        condition: service_healthy
     networks:
       - media-to-text-network
     restart: unless-stopped
@@ -26,52 +81,219 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    labels:
+      - "com.media-to-text.service=api"
+      - "com.media-to-text.version=0.1.0"
 
-  # Redis Service - Job state management and pub/sub
+  # ===========================
+  # Redis Service - Job State Management
+  # ===========================
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: media-to-text-redis
+    hostname: redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    environment:
+      - REDIS_REPLICATION_MODE=master
     volumes:
       - redis_data:/data
+      - type: bind
+        source: ./config/redis.conf
+        target: /usr/local/etc/redis/redis.conf
+        read_only: true
+        bind:
+          create_host_path: true
     networks:
       - media-to-text-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    command: >
+      redis-server 
+      --appendonly yes 
+      --maxmemory ${REDIS_MAX_MEMORY:-512mb} 
+      --maxmemory-policy allkeys-lru
+      --save 900 1 
+      --save 300 10 
+      --save 60 10000
+      --tcp-keepalive 300
+      --timeout 0
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.1'
+    labels:
+      - "com.media-to-text.service=redis"
+      - "com.media-to-text.version=7.2"
 
-  # FFmpeg Service - Media processing
+  # ===========================
+  # FFmpeg Service - Media Processing
+  # ===========================
   ffmpeg:
-    image: jrottenberg/ffmpeg:4.4-alpine
+    image: linuxserver/ffmpeg:version-6.0-cli
     container_name: media-to-text-ffmpeg
+    hostname: ffmpeg
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
     volumes:
-      - media_storage:/tmp/media-to-text
-      - ./data:/app/data:ro  # Mount for input files
+      # Shared storage for media files
+      - media_storage:/tmp
+      # Mount workspace for file access
+      - type: bind
+        source: .
+        target: /workspace
+        read_only: true
+      # Optional: Mount external data directory
+      - type: bind
+        source: ${DATA_DIR:-./data}
+        target: /app/data
+        read_only: true
+        bind:
+          create_host_path: true
     networks:
       - media-to-text-network
     restart: unless-stopped
-    # Keep container running to accept processing requests
-    command: tail -f /dev/null
+    # Keep container running to accept processing requests via docker exec
+    command: >
+      sh -c "
+      echo 'FFmpeg container ready for processing requests';
+      tail -f /dev/null
+      "
     healthcheck:
       test: ["CMD", "ffmpeg", "-version"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    labels:
+      - "com.media-to-text.service=ffmpeg"
+      - "com.media-to-text.version=6.0"
 
+  # ===========================
+  # Optional: Monitoring Services
+  # ===========================
+  
+  # Prometheus (optional, enable by including in profiles)
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: media-to-text-prometheus
+    hostname: prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - type: bind
+        source: ./config/prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        read_only: true
+        bind:
+          create_host_path: true
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    networks:
+      - media-to-text-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    labels:
+      - "com.media-to-text.service=prometheus"
+
+  # Grafana (optional, enable by including in profiles)
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: media-to-text-grafana
+    hostname: grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - media-to-text-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    labels:
+      - "com.media-to-text.service=grafana"
+
+# ===========================
+# Networks Configuration
+# ===========================
 networks:
   media-to-text-network:
-    driver: bridge
     name: media-to-text-network
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+    labels:
+      - "com.media-to-text.network=main"
 
+# ===========================
+# Volumes Configuration
+# ===========================
 volumes:
+  # Redis persistent data storage
   redis_data:
     name: media-to-text-redis-data
+    driver: local
+    labels:
+      - "com.media-to-text.volume=redis-data"
+
+  # Shared media storage for processing
   media_storage:
     name: media-to-text-storage
+    driver: local
+    labels:
+      - "com.media-to-text.volume=media-storage"
+
+  # Prometheus data (optional)
+  prometheus_data:
+    name: media-to-text-prometheus-data
+    driver: local
+    labels:
+      - "com.media-to-text.volume=prometheus-data"
+
+  # Grafana data (optional)
+  grafana_data:
+    name: media-to-text-grafana-data
+    driver: local
+    labels:
+      - "com.media-to-text.volume=grafana-data"

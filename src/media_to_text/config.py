@@ -21,11 +21,11 @@ class Settings(BaseSettings):
     
     # Redis Configuration
     redis_url: str = Field(default="redis://redis:6379", env="REDIS_URL")
-    redis_jobs_prefix: str = Field(default="transcribe:jobs", env="REDIS_JOBS_PREFIX")
+    redis_jobs_prefix: str = Field(default="jobs", env="REDIS_JOBS_PREFIX")
     redis_ttl_days: int = Field(default=7, env="REDIS_TTL_DAYS")
     
     # File Processing Configuration
-    temp_dir: str = Field(default="/tmp", env="TEMP_DIR")
+    temp_dir: str = Field(default="/tmp/media-to-text", env="TEMP_DIR")
     cleanup_temp_files: bool = Field(default=True, env="CLEANUP_TEMP_FILES")
     
     # Monitoring Configuration
@@ -35,7 +35,16 @@ class Settings(BaseSettings):
     # FFmpeg Configuration (will connect to ffmpeg container)
     ffmpeg_container_url: str = Field(default="http://ffmpeg:8080", env="FFMPEG_CONTAINER_URL")
     
+    # Logging Configuration
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    enable_structured_logging: bool = Field(default=True, env="ENABLE_STRUCTURED_LOGGING")
+    enable_axiom: bool = Field(default=False, env="ENABLE_AXIOM")
+    axiom_token: Optional[str] = Field(default=None, env="AXIOM_TOKEN")
+    axiom_dataset: str = Field(default="media-to-text-logs", env="AXIOM_DATASET")
+    log_sensitive_data: bool = Field(default=False, env="LOG_SENSITIVE_DATA")
+    
     class Config:
         """Pydantic configuration."""
         env_file = ".env"
         env_file_encoding = "utf-8"
+        case_sensitive = False

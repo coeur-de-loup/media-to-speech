@@ -1,218 +1,370 @@
-"""Redis service for job management and pub/sub."""
+"""Redis service for job management and real-time updates."""
 
+import asyncio
 import json
-import uuid
-from typing import Dict, List, Optional
+import time
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
 
 import redis.asyncio as redis
-from redis.asyncio import Redis
+from redis.asyncio.client import Redis
 
 from media_to_text.config import Settings
-from media_to_text.models import JobMetadata, JobState
+from media_to_text.models import JobState, JobStatus
+from media_to_text.logging import LoggerMixin, get_logger
 
 
-class RedisService:
-    """Service for Redis operations."""
+class RedisService(LoggerMixin):
+    """Redis service for job management, state tracking, and pub/sub."""
     
     def __init__(self, settings: Settings):
         self.settings = settings
         self.redis: Optional[Redis] = None
-        self.jobs_prefix = settings.redis_jobs_prefix
+        self.redis_url = settings.redis_url
         self.ttl_seconds = settings.redis_ttl_days * 24 * 60 * 60
-    
+        self.jobs_prefix = settings.redis_jobs_prefix
+        
     async def connect(self) -> None:
         """Connect to Redis."""
-        self.redis = redis.from_url(
-            self.settings.redis_url,
-            encoding="utf-8",
-            decode_responses=True
-        )
-        # Test connection
-        await self.redis.ping()
+        try:
+            self.redis = redis.from_url(self.redis_url, decode_responses=True)
+            # Test connection
+            await self.redis.ping()
+            self.logger.info("Redis connection established", redis_url=self.redis_url)
+        except Exception as e:
+            self.logger.error("Failed to connect to Redis", 
+                            redis_url=self.redis_url, 
+                            error=str(e))
+            raise
     
     async def disconnect(self) -> None:
         """Disconnect from Redis."""
         if self.redis:
-            await self.redis.close()
+            try:
+                await self.redis.aclose()
+                self.logger.info("Redis connection closed")
+            except Exception as e:
+                self.logger.warning("Error closing Redis connection", error=str(e))
+            finally:
+                self.redis = None
     
-    def _get_meta_key(self, job_id: str) -> str:
-        """Get Redis key for job metadata."""
-        return f"{self.jobs_prefix}:{job_id}:meta"
+    def _job_key(self, job_id: str) -> str:
+        """Get Redis key for job data."""
+        return f"{self.jobs_prefix}:{job_id}"
     
-    def _get_stream_key(self, job_id: str) -> str:
-        """Get Redis key for job stream."""
-        return f"{self.jobs_prefix}:{job_id}:stream"
+    def _stream_key(self, job_id: str) -> str:
+        """Get Redis key for job updates stream."""
+        return f"{self.jobs_prefix}:stream:{job_id}"
     
-    async def create_job(self, file_path: str, language: str) -> JobMetadata:
+    async def create_job(self, job_id: str, file_path: str, **metadata) -> None:
         """Create a new job in Redis."""
         if not self.redis:
             raise RuntimeError("Redis not connected")
         
-        job_id = str(uuid.uuid4())
-        job_metadata = JobMetadata(
-            job_id=job_id,
-            file_path=file_path,
-            language=language,
-            state=JobState.QUEUED
-        )
-        
-        # Store metadata
-        meta_key = self._get_meta_key(job_id)
-        await self.redis.hset(meta_key, mapping=job_metadata.to_dict())
-        await self.redis.expire(meta_key, self.ttl_seconds)
-        
-        # Publish initial state to stream
-        await self.publish_job_update(job_id, {
+        job_data = {
+            "id": job_id,
+            "file_path": file_path,
             "state": JobState.QUEUED.value,
-            "message": "Job created and queued for processing"
-        })
-        
-        return job_metadata
-    
-    async def get_job(self, job_id: str) -> Optional[JobMetadata]:
-        """Get job metadata from Redis."""
-        if not self.redis:
-            raise RuntimeError("Redis not connected")
-        
-        meta_key = self._get_meta_key(job_id)
-        job_data = await self.redis.hgetall(meta_key)
-        
-        if not job_data:
-            return None
-        
-        return JobMetadata.from_dict(job_data)
-    
-    async def update_job_state(self, job_id: str, state: JobState, error_message: Optional[str] = None) -> None:
-        """Update job state in Redis."""
-        if not self.redis:
-            raise RuntimeError("Redis not connected")
-        
-        meta_key = self._get_meta_key(job_id)
-        updates = {"state": state.value}
-        
-        if error_message:
-            updates["error_message"] = error_message
-        
-        await self.redis.hset(meta_key, mapping=updates)
-        
-        # Publish state change to stream
-        await self.publish_job_update(job_id, {
-            "state": state.value,
-            "error_message": error_message
-        })
-    
-    async def update_job_progress(self, job_id: str, chunks_done: int, chunks_total: int) -> None:
-        """Update job progress in Redis."""
-        if not self.redis:
-            raise RuntimeError("Redis not connected")
-        
-        meta_key = self._get_meta_key(job_id)
-        await self.redis.hset(meta_key, mapping={
-            "chunks_done": str(chunks_done),
-            "chunks_total": str(chunks_total)
-        })
-        
-        # Calculate and publish progress
-        progress = chunks_done / chunks_total if chunks_total > 0 else 0.0
-        await self.publish_job_update(job_id, {
-            "progress": progress,
-            "chunks_done": chunks_done,
-            "chunks_total": chunks_total
-        })
-    
-    async def publish_job_update(self, job_id: str, data: Dict) -> None:
-        """Publish job update to Redis stream."""
-        if not self.redis:
-            raise RuntimeError("Redis not connected")
-        
-        stream_key = self._get_stream_key(job_id)
-        
-        # Add timestamp and job_id to data
-        stream_data = {
-            "job_id": job_id,
-            "timestamp": str(redis.time.time()),
-            **data
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "progress": 0,
+            **metadata
         }
         
-        await self.redis.xadd(stream_key, stream_data)
-        await self.redis.expire(stream_key, self.ttl_seconds)
-    
-    async def get_job_updates(self, job_id: str, start_id: str = "0") -> List[Dict]:
-        """Get job updates from Redis stream."""
-        if not self.redis:
-            raise RuntimeError("Redis not connected")
-        
-        stream_key = self._get_stream_key(job_id)
+        job_key = self._job_key(job_id)
         
         try:
-            messages = await self.redis.xread({stream_key: start_id}, count=100)
-            updates = []
+            # Store job data as hash
+            await self.redis.hset(job_key, mapping=job_data)
+            await self.redis.expire(job_key, self.ttl_seconds)
             
-            for stream, msgs in messages:
-                for msg_id, fields in msgs:
-                    updates.append({
-                        "id": msg_id,
-                        **fields
-                    })
+            # Add to stream for real-time updates
+            await self._publish_update(job_id, JobState.QUEUED, **job_data)
             
-            return updates
-        except redis.RedisError:
-            return []
+            self.logger.info("Job created in Redis", 
+                           job_id=job_id, 
+                           file_path=file_path,
+                           ttl_seconds=self.ttl_seconds)
+        except Exception as e:
+            self.logger.error("Failed to create job in Redis", 
+                            job_id=job_id, 
+                            error=str(e))
+            raise
+    
+    async def update_job_state(self, job_id: str, state: JobState, **updates) -> None:
+        """Update job state and metadata."""
+        if not self.redis:
+            raise RuntimeError("Redis not connected")
+        
+        job_key = self._job_key(job_id)
+        
+        try:
+            # Check if job exists
+            if not await self.redis.exists(job_key):
+                self.logger.warning("Attempted to update non-existent job", job_id=job_id)
+                return
+            
+            # Update job data
+            update_data = {
+                "state": state.value,
+                "updated_at": datetime.utcnow().isoformat(),
+                **updates
+            }
+            
+            await self.redis.hset(job_key, mapping=update_data)
+            
+            # Publish update to stream
+            await self._publish_update(job_id, state, **update_data)
+            
+            self.logger.debug("Job state updated", 
+                            job_id=job_id, 
+                            state=state.value,
+                            updates=list(updates.keys()))
+        except Exception as e:
+            self.logger.error("Failed to update job state", 
+                            job_id=job_id, 
+                            state=state.value,
+                            error=str(e))
+            raise
+    
+    async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get job data by ID."""
+        if not self.redis:
+            raise RuntimeError("Redis not connected")
+        
+        job_key = self._job_key(job_id)
+        
+        try:
+            job_data = await self.redis.hgetall(job_key)
+            if not job_data:
+                self.logger.debug("Job not found", job_id=job_id)
+                return None
+            
+            # Convert numeric fields
+            if "progress" in job_data:
+                job_data["progress"] = float(job_data["progress"])
+            
+            self.logger.debug("Job retrieved", job_id=job_id, state=job_data.get("state"))
+            return job_data
+        except Exception as e:
+            self.logger.error("Failed to get job", job_id=job_id, error=str(e))
+            raise
+    
+    async def list_jobs(self, 
+                       state_filter: Optional[JobState] = None,
+                       limit: int = 100) -> List[Dict[str, Any]]:
+        """List jobs with optional state filtering."""
+        if not self.redis:
+            raise RuntimeError("Redis not connected")
+        
+        try:
+            # Get all job keys
+            pattern = f"{self.jobs_prefix}:*"
+            # Exclude stream keys
+            all_keys = await self.redis.keys(pattern)
+            job_keys = [key for key in all_keys if ":stream:" not in key]
+            
+            jobs = []
+            for job_key in job_keys[:limit]:
+                job_data = await self.redis.hgetall(job_key)
+                if job_data:
+                    # Convert numeric fields
+                    if "progress" in job_data:
+                        job_data["progress"] = float(job_data["progress"])
+                    
+                    # Apply state filter
+                    if state_filter is None or job_data.get("state") == state_filter.value:
+                        jobs.append(job_data)
+            
+            # Sort by created_at descending
+            jobs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            
+            self.logger.debug("Jobs listed", 
+                            count=len(jobs), 
+                            state_filter=state_filter.value if state_filter else None)
+            return jobs
+        except Exception as e:
+            self.logger.error("Failed to list jobs", 
+                            state_filter=state_filter.value if state_filter else None,
+                            error=str(e))
+            raise
     
     async def delete_job(self, job_id: str) -> bool:
-        """Delete job metadata and stream from Redis."""
+        """Delete a job and its stream."""
         if not self.redis:
             raise RuntimeError("Redis not connected")
         
-        meta_key = self._get_meta_key(job_id)
-        stream_key = self._get_stream_key(job_id)
+        job_key = self._job_key(job_id)
+        stream_key = self._stream_key(job_id)
         
-        # Delete both keys
-        deleted = await self.redis.delete(meta_key, stream_key)
-        return deleted > 0
+        try:
+            # Delete job data and stream
+            deleted_count = 0
+            if await self.redis.exists(job_key):
+                await self.redis.delete(job_key)
+                deleted_count += 1
+            
+            if await self.redis.exists(stream_key):
+                await self.redis.delete(stream_key)
+                deleted_count += 1
+            
+            success = deleted_count > 0
+            if success:
+                self.logger.info("Job deleted from Redis", 
+                               job_id=job_id, 
+                               deleted_items=deleted_count)
+            else:
+                self.logger.warning("Attempted to delete non-existent job", job_id=job_id)
+            
+            return success
+        except Exception as e:
+            self.logger.error("Failed to delete job", job_id=job_id, error=str(e))
+            raise
     
-    async def list_jobs(self, state: Optional[JobState] = None) -> List[JobMetadata]:
-        """List all jobs, optionally filtered by state."""
+    async def _publish_update(self, job_id: str, state: JobState, **data) -> None:
+        """Publish job update to Redis stream."""
+        if not self.redis:
+            return
+        
+        stream_key = self._stream_key(job_id)
+        
+        try:
+            update_data = {
+                "job_id": job_id,
+                "state": state.value,
+                "timestamp": datetime.utcnow().isoformat(),
+                **{k: json.dumps(v) if isinstance(v, (dict, list)) else str(v) 
+                   for k, v in data.items()}
+            }
+            
+            await self.redis.xadd(stream_key, update_data)
+            await self.redis.expire(stream_key, self.ttl_seconds)
+            
+            self.logger.debug("Update published to stream", 
+                            job_id=job_id, 
+                            state=state.value)
+        except Exception as e:
+            self.logger.warning("Failed to publish update to stream", 
+                              job_id=job_id,
+                              error=str(e))
+    
+    async def get_job_updates(self, job_id: str, last_id: str = "0") -> List[Dict[str, Any]]:
+        """Get job updates from stream."""
         if not self.redis:
             raise RuntimeError("Redis not connected")
         
-        # Scan for all job metadata keys
-        pattern = f"{self.jobs_prefix}:*:meta"
-        jobs = []
+        stream_key = self._stream_key(job_id)
         
-        async for key in self.redis.scan_iter(match=pattern):
-            job_data = await self.redis.hgetall(key)
-            if job_data:
-                job_metadata = JobMetadata.from_dict(job_data)
-                if state is None or job_metadata.state == state:
-                    jobs.append(job_metadata)
+        try:
+            # Read from stream
+            result = await self.redis.xread({stream_key: last_id}, count=100)
+            
+            updates = []
+            if result:
+                for stream, messages in result:
+                    for message_id, fields in messages:
+                        update = {"id": message_id, **fields}
+                        # Parse JSON fields back
+                        for key, value in update.items():
+                            if key in ["id", "job_id", "state", "timestamp"]:
+                                continue
+                            try:
+                                update[key] = json.loads(value)
+                            except (json.JSONDecodeError, TypeError):
+                                pass  # Keep as string
+                        updates.append(update)
+            
+            self.logger.debug("Job updates retrieved", 
+                            job_id=job_id, 
+                            count=len(updates),
+                            last_id=last_id)
+            return updates
+        except Exception as e:
+            self.logger.error("Failed to get job updates", 
+                            job_id=job_id, 
+                            error=str(e))
+            raise
+    
+    async def get_queued_jobs(self) -> List[Dict[str, Any]]:
+        """Get all jobs in QUEUED state for processing."""
+        return await self.list_jobs(state_filter=JobState.QUEUED)
+    
+    async def cleanup_expired_jobs(self) -> int:
+        """Clean up expired jobs and return count of cleaned items."""
+        if not self.redis:
+            raise RuntimeError("Redis not connected")
         
-        return sorted(jobs, key=lambda x: x.created_at, reverse=True)
+        try:
+            # Get all job keys
+            pattern = f"{self.jobs_prefix}:*"
+            all_keys = await self.redis.keys(pattern)
+            
+            cleaned_count = 0
+            cutoff_time = datetime.utcnow() - timedelta(days=self.settings.redis_ttl_days)
+            
+            for key in all_keys:
+                try:
+                    # Check TTL
+                    ttl = await self.redis.ttl(key)
+                    if ttl == -1:  # No expiration set
+                        # Check if it's old enough to clean
+                        if ":stream:" not in key:  # Only check job data, not streams
+                            job_data = await self.redis.hgetall(key)
+                            if job_data and "created_at" in job_data:
+                                created_at = datetime.fromisoformat(job_data["created_at"])
+                                if created_at < cutoff_time:
+                                    await self.redis.delete(key)
+                                    cleaned_count += 1
+                    elif ttl == -2:  # Key doesn't exist
+                        continue
+                except Exception as e:
+                    self.logger.warning("Failed to check/clean key", key=key, error=str(e))
+                    continue
+            
+            if cleaned_count > 0:
+                self.logger.info("Cleaned up expired jobs", count=cleaned_count)
+            
+            return cleaned_count
+        except Exception as e:
+            self.logger.error("Failed to cleanup expired jobs", error=str(e))
+            raise
 
 
-# Global Redis service instance
-redis_service: Optional[RedisService] = None
-
-
-async def get_redis_service() -> RedisService:
-    """Get Redis service instance."""
-    global redis_service
-    if redis_service is None:
-        raise RuntimeError("Redis service not initialized")
-    return redis_service
+# Global instance
+_redis_service: Optional[RedisService] = None
 
 
 async def init_redis_service(settings: Settings) -> RedisService:
     """Initialize Redis service."""
-    global redis_service
-    redis_service = RedisService(settings)
-    await redis_service.connect()
-    return redis_service
+    global _redis_service
+    logger = get_logger("redis_init")
+    
+    try:
+        _redis_service = RedisService(settings)
+        await _redis_service.connect()
+        logger.info("Redis service initialized successfully")
+        return _redis_service
+    except Exception as e:
+        logger.error("Failed to initialize Redis service", error=str(e))
+        raise
 
 
 async def close_redis_service() -> None:
     """Close Redis service."""
-    global redis_service
-    if redis_service:
-        await redis_service.disconnect()
-        redis_service = None
+    global _redis_service
+    logger = get_logger("redis_close")
+    
+    if _redis_service:
+        try:
+            await _redis_service.disconnect()
+            _redis_service = None
+            logger.info("Redis service closed successfully")
+        except Exception as e:
+            logger.warning("Error closing Redis service", error=str(e))
+
+
+def get_redis_service() -> RedisService:
+    """Get the global Redis service instance."""
+    if _redis_service is None:
+        raise RuntimeError("Redis service not initialized")
+    return _redis_service

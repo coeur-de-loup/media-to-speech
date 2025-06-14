@@ -659,7 +659,7 @@
       "id": 11,
       "title": "Implement DELETE /jobs/{id} Endpoint (Job Cancellation) with FastAPI",
       "description": "Allow clients to cancel a running job via FastAPI, marking it as FAILED and cleaning up resources.",
-      "status": "pending",
+      "status": "done",
       "dependencies": [
         9,
         8
@@ -674,7 +674,7 @@
           "description": "Design and implement the API endpoint that initiates the processing workflow, handling incoming requests and validating input.",
           "dependencies": [],
           "details": "Define the endpoint route, parse request data, and ensure proper validation and error handling before proceeding to state management.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 2,
@@ -684,7 +684,7 @@
             1
           ],
           "details": "Ensure the endpoint updates Redis with relevant state changes (e.g., started, in-progress, completed, failed) and handles potential race conditions.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 3,
@@ -694,7 +694,7 @@
             2
           ],
           "details": "Design logic to check for interruption signals, gracefully stop processing, and update Redis state accordingly.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 4,
@@ -704,7 +704,7 @@
             3
           ],
           "details": "Ensure cleanup logic is robust, idempotent, and can handle partial failures or retries.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 5,
@@ -714,7 +714,7 @@
             4
           ],
           "details": "Return appropriate responses based on processing outcomes and write tests for endpoint logic, Redis updates, interruption, and cleanup.",
-          "status": "pending"
+          "status": "done"
         }
       ]
     },
@@ -787,7 +787,7 @@
       "id": 13,
       "title": "Implement Worker Crash Recovery and Job Resumption (uv/FastAPI Environment)",
       "description": "Ensure that if a worker crashes mid-job, it can resume processing from Redis state, using the FastAPI/uv stack.",
-      "status": "pending",
+      "status": "in-progress",
       "dependencies": [
         9,
         6
@@ -801,8 +801,8 @@
           "title": "Implement Redis Scanning on Startup",
           "description": "Develop logic to scan Redis for existing jobs or relevant data when the application starts, ensuring awareness of in-progress or incomplete jobs.",
           "dependencies": [],
-          "details": "This involves connecting to Redis, querying for job keys or relevant data structures, and loading their state into memory or a processing queue.",
-          "status": "pending"
+          "details": "This involves connecting to Redis, querying for job keys or relevant data structures, and loading their state into memory or a processing queue.\n<info added on 2025-06-14T17:57:20.648Z>\n## Implementation Status: COMPLETED\n\nThe Redis scanning on startup functionality has been fully implemented in the JobWorker class:\n\n### Key Features Implemented:\n1. **Automatic Crash Recovery**: The _perform_crash_recovery() method is called during worker startup\n2. **Redis Job Scanning**: Scans for jobs in PROCESSING state that may have been interrupted\n3. **Recovery Statistics**: Tracks recovered vs failed recovery counts\n4. **Event Publishing**: Publishes recovery events to Redis streams\n5. **Integration**: Properly integrated into the startup sequence in main.py\n\n### Code Location:\n- File: src/media_to_text/services/job_worker.py\n- Method: _perform_crash_recovery() (lines 71-159)\n- Integration: Called from start() method before worker loop begins\n- Startup: Initialized in main.py lifespan manager\n\n### Implementation Details:\n- Scans Redis using redis_service.list_jobs(state_filter=JobState.PROCESSING)\n- For each interrupted job, calls _resume_job() to attempt recovery\n- Publishes recovery events with detailed status information\n- Handles both successful and failed recovery scenarios\n- Integrates with cleanup service for failed recoveries\n\n### Verification:\n- Startup sequence: main.py → init_job_worker() → JobWorker.start() → _perform_crash_recovery()\n- Recovery logs include job counts, success/failure rates, and detailed status\n- Proper error handling and graceful degradation if recovery fails\n\nThe implementation is production-ready and comprehensive.\n</info added on 2025-06-14T17:57:20.648Z>",
+          "status": "done"
         },
         {
           "id": 2,
@@ -811,8 +811,8 @@
           "dependencies": [
             1
           ],
-          "details": "Utilize the data loaded from Redis to identify jobs needing resumption, and safely restart their processing from the correct state.",
-          "status": "pending"
+          "details": "Utilize the data loaded from Redis to identify jobs needing resumption, and safely restart their processing from the correct state.\n<info added on 2025-06-14T17:58:37.026Z>\nImplementation Status: COMPLETED\n\nThe job resumption logic has been fully implemented with comprehensive functionality:\n\nCore Resumption Features:\n1. _resume_job() - Main resumption orchestrator that handles all recovery scenarios\n2. _recover_chunk_info() - Recovers chunk data from Redis events or filesystem fallback\n3. _check_completed_chunks() - Idempotency checks to identify already-processed chunks\n4. _resume_chunk_processing() - Processes only remaining chunks with proper progress tracking\n5. _finalize_recovered_job() - Handles jobs where all chunks were already completed\n\nRecovery Scenarios Handled:\n- Partial Processing: Jobs with some chunks completed, resume remaining chunks\n- Complete Processing: All chunks done, finalize if transcript missing\n- No Previous Data: No chunk info found, restart job from beginning\n- File System Recovery: Fallback chunk discovery from filesystem if Redis data unavailable\n- Data Integrity: Proper validation of original files and chunk data\n\nKey Implementation Details:\n- Idempotency: Avoids re-processing already completed chunks\n- Progress Tracking: Updates Redis with combined completed + new chunk counts\n- Success Rate Logic: 50% threshold for job completion vs failure\n- Recovery Events: Publishes detailed recovery events to Redis streams\n- Error Handling: Comprehensive error handling with graceful degradation\n- Integration: Seamlessly integrates with cleanup service and Redis state management\n\nCode Quality:\n- Production-ready implementation with detailed logging\n- Proper async/await patterns throughout\n- Type conversion handling (dict to JobMetadata)\n- Resource cleanup and state management\n- Comprehensive exception handling\n\nVerification:\n- Method: _resume_job() (lines 160-219) - Main recovery orchestrator\n- Method: _recover_chunk_info() (lines 230-286) - Data recovery with fallbacks\n- Method: _check_completed_chunks() (lines 287-315) - Idempotency verification\n- Method: _resume_chunk_processing() (lines 316-411) - Chunk processing resumption\n- Method: _finalize_recovered_job() (lines 412-441) - Final result handling\n\nThe job resumption logic is comprehensive, robust, and production-ready.\n</info added on 2025-06-14T17:58:37.026Z>",
+          "status": "done"
         },
         {
           "id": 3,
@@ -821,8 +821,8 @@
           "dependencies": [
             2
           ],
-          "details": "Implement checks using Redis or other mechanisms to track job completion and prevent duplicate processing.",
-          "status": "pending"
+          "details": "Implement checks using Redis or other mechanisms to track job completion and prevent duplicate processing.\n<info added on 2025-06-14T17:59:48.340Z>\n## Implementation Status: COMPLETED\n\nComprehensive idempotency checks have been fully implemented across multiple levels:\n\n### Chunk-Level Idempotency (Primary):\n- _check_completed_chunks() method (lines 287-315) scans Redis streams for 'chunk_transcribed' events\n- Builds list of completed chunk indices to avoid re-processing during recovery\n- Handles deduplication, type conversion, and error handling\n- Only remaining chunks are processed during job resumption\n\n### Job-Level Idempotency:\n- Final Result Checking (lines 412-441) checks for existing transcript in Redis\n- Key format: 'transcript:{job_id}' for unique result storage\n- If result exists, job is marked completed without re-processing\n- Prevents duplicate final processing and resource waste\n\n### Event-Based Idempotency:\n- Redis Stream Tracking records all chunk completions as events\n- Events include detailed metadata: chunk_index, text, processing_time, retry_count\n- Recovery process uses events to determine completed work\n- Recovered chunks marked with 'recovered: True' flag for tracking\n\n### State Management Idempotency:\n- Job State Validation ensures only QUEUED jobs are processed\n- PROCESSING state jobs identified during crash recovery scanning\n- State transitions prevent duplicate processing attempts\n- Worker loop respects job states for proper flow control\n\n### Progress Tracking Idempotency:\n- Combined Progress Calculation merges completed + new chunk counts\n- Prevents double-counting of previously completed work\n- Maintains accurate progress throughout recovery and normal processing\n- Redis progress updates reflect true completion status\n\n### Storage Idempotency:\n- Unique Redis Keys prevent result collisions (transcript:{job_id})\n- TTL-based expiration prevents stale data accumulation\n- Atomic Redis operations prevent race conditions\n- JSON serialization with consistent structure\n\n### Implementation Quality:\n- Production-ready with comprehensive error handling\n- Multiple fallback mechanisms (Redis events -> filesystem discovery)\n- Detailed logging for idempotency verification\n- Type-safe handling with proper validation\n- Integration with all recovery and processing flows\n\n### Code Locations:\n- Chunk idempotency: _check_completed_chunks() (lines 287-315)\n- Result idempotency: _finalize_recovered_job() (lines 412-441)\n- Recovery integration: _resume_job() uses idempotency checks\n- Progress integration: _resume_chunk_processing() respects completed chunks\n- Event tracking: Redis stream events throughout processing\n\nIdempotency is comprehensive, multi-layered, and production-ready.\n</info added on 2025-06-14T17:59:48.340Z>",
+          "status": "done"
         },
         {
           "id": 4,
@@ -831,8 +831,8 @@
           "dependencies": [
             2
           ],
-          "details": "Integrate with an event bus or logging system to emit structured events whenever a job is resumed after a crash or restart.",
-          "status": "pending"
+          "details": "Integrate with an event bus or logging system to emit structured events whenever a job is resumed after a crash or restart.\n<info added on 2025-06-14T18:01:01.756Z>\n## Implementation Status: COMPLETED\n\nComprehensive recovery event publishing has been fully implemented with structured event system:\n\n### Core Event Publishing Method:\n- **_publish_recovery_event()** method (lines 432-461) provides centralized event publishing\n- Structured event data with consistent format across all recovery scenarios\n- Integration with Redis streams via redis_service.publish_job_update()\n- Comprehensive error handling with warning logs for failed publishes\n\n### Recovery Event Types Published:\n1. **recovery_started** (line 102) - When crash recovery begins for interrupted job\n2. **recovery_completed** (line 112) - When job recovery succeeds with success metrics\n3. **recovery_failed** (line 119) - When job recovery fails with error details\n4. **processing_resumed** (line 326) - When chunk processing resumes with progress data\n\n### Event Data Structure:\n- Standard fields: event, job_id, timestamp, recovery flag\n- Event-specific data: messages, metrics, counts, error details\n- Redis stream integration for persistence and external monitoring\n- Consistent timestamp using asyncio.get_event_loop().time()\n\n### Integration with External Systems:\n- **Redis Streams**: Events persist in Redis for external subscribers\n- **Structured Logging**: LoggerMixin provides detailed logs for all events\n- **Event Bus Architecture**: Redis streams act as event bus for microservices\n- **Monitoring Integration**: Events include metrics for observability platforms\n\n### Event Publishing Locations:\n- Recovery startup: Publishes when scanning finds interrupted jobs\n- Recovery success: Publishes completion with success metrics\n- Recovery failure: Publishes failure with error context\n- Processing resumption: Publishes when chunk processing resumes\n- Integration throughout crash recovery workflow\n\n### Production Features:\n- **Error Resilience**: Failed event publishing doesn't break recovery\n- **Structured Data**: JSON-serializable event data for external consumption\n- **Event Filtering**: 'recovery: True' flag for filtering recovery events\n- **Timestamp Precision**: High-precision timestamps for event ordering\n- **Context Preservation**: Full job context included in events\n\n### External System Integration:\n- Events published to Redis streams enable real-time monitoring\n- External services can subscribe to job recovery events\n- Structured format supports integration with logging aggregators\n- Event metadata supports alerting and dashboard systems\n\n### Code Quality:\n- Production-ready with comprehensive error handling\n- Consistent event structure across all recovery scenarios\n- Integration with existing Redis service infrastructure\n- Detailed logging for debugging and monitoring\n\nRecovery event publishing is comprehensive, production-ready, and fully integrated.\n</info added on 2025-06-14T18:01:01.756Z>",
+          "status": "done"
         },
         {
           "id": 5,
@@ -842,8 +842,8 @@
             3,
             4
           ],
-          "details": "Automate tests that forcibly crash the system and validate that jobs are resumed correctly, no duplicates occur, and recovery events are published.",
-          "status": "pending"
+          "details": "Automate tests that forcibly crash the system and validate that jobs are resumed correctly, no duplicates occur, and recovery events are published.\n<info added on 2025-06-14T18:05:36.155Z>\n## Implementation Status: COMPLETED\n\nComprehensive chaos testing suite has been fully implemented to validate crash recovery functionality:\n\n### Core Testing Framework:\n- **ChaosTestFramework**: Comprehensive framework for simulating crashes and validating recovery\n- **Mock Service Integration**: Complete mocking of Redis, FFmpeg, OpenAI, and Cleanup services\n- **Test Job Creation**: Configurable test jobs with various file sizes and scenarios\n- **Crash Simulation**: Precise crash injection at different processing stages\n\n### Test Scenarios Implemented:\n1. **Recovery After Transcription Crash** - Worker crashes during chunk processing\n2. **Recovery with No Previous Chunks** - Crashes before any work completed\n3. **Recovery with All Chunks Completed** - Crashes during finalization\n4. **Multiple Recovery Attempts** - Tests idempotency across multiple recovery attempts\n5. **Recovery Event Structure** - Validates event data structure and content\n6. **Crash During Different Phases** - Tests crashes at initialization, early/mid/late transcription\n\n### Extended Chaos Scenarios:\n1. **Redis Connection Loss During Recovery** - Infrastructure failure resilience\n2. **Concurrent Recovery Attempts** - Race condition and concurrent safety testing\n3. **Corrupted Chunk Files** - Missing/corrupted file handling\n\n### Validation Framework:\n- **State Consistency**: Job state before/after recovery validation\n- **Idempotency Verification**: Ensures no duplicate chunk processing\n- **Event Publishing Validation**: Verifies all recovery events published correctly\n- **Progress Tracking**: Validates accurate progress calculations\n- **Error Handling**: Tests graceful failure management\n\n### Test Infrastructure:\n- **File**: tests/test_chaos_recovery.py (580+ lines of comprehensive testing)\n- **Configuration**: tests/conftest.py with pytest setup\n- **Dependencies**: tests/requirements-test.txt with testing packages\n- **Runner Script**: tests/run_chaos_tests.py with various execution options\n- **Documentation**: tests/CHAOS_TESTING.md with comprehensive guide\n\n### Testing Features:\n- **Comprehensive Coverage**: 6 basic + 3 extended chaos scenarios\n- **Mock Service Integration**: Complete isolation of crash recovery logic\n- **Automated Validation**: Multi-aspect validation for each test\n- **Performance Testing**: Concurrent and stress testing scenarios\n- **CI/CD Integration**: Ready for automated pipeline integration\n\n### Execution Options:\n- Quick test suite (basic scenarios)\n- Full comprehensive suite (all scenarios)\n- Coverage reporting integration\n- Parallel execution support\n- Verbose debugging modes\n\n### Validation Criteria:\n- 100% Recovery Success Rate across all scenarios\n- Zero idempotency violations (no duplicate processing)\n- Complete event coverage (all recovery events published)\n- Consistent state management throughout\n- Graceful error handling without corruption\n\n### Test Quality:\n- Production-ready test framework with proper isolation\n- Comprehensive mock services matching real interfaces\n- Detailed validation of all crash recovery aspects\n- Performance benchmarks and success criteria defined\n- Extensive documentation for maintenance and extension\n\nChaos testing validates that crash recovery is robust, reliable, and maintains data consistency under all failure scenarios.\n</info added on 2025-06-14T18:05:36.155Z>",
+          "status": "done"
         },
         {
           "id": 6,
@@ -960,7 +960,7 @@
       "id": 15,
       "title": "Create Docker Compose File for Multi-Container Setup (uv/FastAPI Environment)",
       "description": "Develop a docker-compose.yml file to orchestrate the ffmpegofficial container, the FastAPI/uv-based API service, and the Reddit container, ensuring proper networking and configuration for local development and testing.",
-      "status": "pending",
+      "status": "done",
       "dependencies": [
         12
       ],
@@ -974,7 +974,7 @@
           "description": "Create detailed service definitions for each container, specifying images, environment variables, ports, and resource limits.",
           "dependencies": [],
           "details": "List all required services, their configurations, and any specific runtime parameters needed for orchestration.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 2,
@@ -984,7 +984,7 @@
             1
           ],
           "details": "Define custom networks, assign aliases, and configure network modes as necessary for service discovery and isolation.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 3,
@@ -994,7 +994,7 @@
             1
           ],
           "details": "Specify named volumes, mount points, and access permissions to ensure data durability and accessibility.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 4,
@@ -1004,7 +1004,7 @@
             1
           ],
           "details": "Configure healthcheck commands, intervals, retries, and timeouts for all critical containers.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 5,
@@ -1017,7 +1017,7 @@
             4
           ],
           "details": "Use orchestration features to specify service order, wait conditions, and restart policies.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 6,
@@ -1031,7 +1031,7 @@
             5
           ],
           "details": "Include diagrams, configuration samples, and troubleshooting tips for users and maintainers.",
-          "status": "pending"
+          "status": "done"
         },
         {
           "id": 7,
@@ -1046,7 +1046,75 @@
             6
           ],
           "details": "Implement integration and end-to-end tests to ensure services interact as expected and healthchecks function properly.",
-          "status": "pending"
+          "status": "done"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "Migrate Logging to structlog with Axiom Integration and Request Tracing",
+      "description": "Replace all print statements and standard logging with structlog, configure an Axiom handler for centralized log aggregation, implement structured logging with request tracing, and set up log levels for observability.",
+      "details": "1. Refactor all code to remove print statements and standard logging, replacing them with structlog calls using structured event dictionaries. 2. Configure structlog to use an Axiom log handler, ensuring logs are sent to the correct Axiom dataset (obtain API keys and dataset info from environment variables or config). 3. Implement request tracing by injecting a unique trace ID into each request context (e.g., via FastAPI middleware), and ensure this trace ID is included in all log events for that request. 4. Set up log level configuration via environment variables, supporting at least DEBUG, INFO, WARNING, and ERROR levels. 5. Ensure all FastAPI endpoints, background workers, and error handlers use structured logging. 6. Document the logging setup and provide examples for developers. 7. Ensure sensitive data is not logged. 8. Update Docker and deployment configs to include Axiom credentials and log level settings.",
+      "testStrategy": "1. Run the application and verify that all logs are structured JSON objects and sent to the configured Axiom dataset. 2. Trigger requests and confirm that each log event includes a consistent trace ID for the request. 3. Change log levels via environment variables and verify that log output respects the configured level. 4. Simulate errors and verify that error logs are structured and sent to Axiom. 5. Review Axiom dashboard to confirm log ingestion and correct field mapping (trace ID, log level, message, etc.). 6. Ensure no print statements or standard logging calls remain in the codebase. 7. Review code and logs to confirm that no sensitive data is present in log events.",
+      "status": "done",
+      "dependencies": [
+        12
+      ],
+      "priority": "high",
+      "subtasks": [
+        {
+          "id": 1,
+          "title": "Refactor Logging to Use structlog",
+          "description": "Replace all print statements and standard logging calls in the codebase with structlog, ensuring structured event dictionaries are used.",
+          "dependencies": [],
+          "details": "Identify all instances of print and standard logging, and refactor them to use structlog with structured event dictionaries for consistency and improved log parsing.",
+          "status": "done",
+          "testStrategy": "Run unit tests and manually trigger logging events to verify that all logs are emitted via structlog and are structured as dictionaries."
+        },
+        {
+          "id": 2,
+          "title": "Configure structlog with Axiom Handler",
+          "description": "Set up structlog to use an Axiom log handler, ensuring logs are sent to the correct Axiom dataset using credentials from environment variables or configuration files.",
+          "dependencies": [
+            1
+          ],
+          "details": "Integrate the Axiom handler into structlog configuration, retrieve API keys and dataset information from environment variables or config, and verify connectivity to Axiom.",
+          "status": "done",
+          "testStrategy": "Send test log events and confirm their appearance in the correct Axiom dataset."
+        },
+        {
+          "id": 3,
+          "title": "Implement Request Tracing with Trace IDs",
+          "description": "Inject a unique trace ID into each request context (e.g., via FastAPI middleware) and ensure this trace ID is included in all log events for that request.",
+          "dependencies": [
+            1
+          ],
+          "details": "Develop middleware to generate and attach a trace ID to each request, and modify logging calls to include the trace ID in the structured log output.",
+          "status": "done",
+          "testStrategy": "Make test requests and verify that all logs for a request share the same trace ID."
+        },
+        {
+          "id": 4,
+          "title": "Set Up Log Level Configuration and Sensitive Data Filtering",
+          "description": "Enable log level configuration via environment variables (supporting DEBUG, INFO, WARNING, and ERROR), and ensure sensitive data is not logged.",
+          "dependencies": [
+            2,
+            3
+          ],
+          "details": "Implement log level controls in the logging configuration and add filters or processors to prevent sensitive data from being included in logs.",
+          "status": "done",
+          "testStrategy": "Change log levels via environment variables and verify log output; attempt to log sensitive data and confirm it is filtered or redacted."
+        },
+        {
+          "id": 5,
+          "title": "Update Application Integration and Documentation",
+          "description": "Ensure all FastAPI endpoints, background workers, and error handlers use structured logging, update Docker and deployment configs for Axiom credentials and log level settings, and provide developer documentation with examples.",
+          "dependencies": [
+            4
+          ],
+          "details": "Audit all application components for structured logging usage, update deployment configurations, and write clear documentation and usage examples for developers.",
+          "status": "done",
+          "testStrategy": "Review endpoints and workers for compliance, validate deployment with new configs, and have developers follow documentation to implement logging in new code."
         }
       ]
     }
