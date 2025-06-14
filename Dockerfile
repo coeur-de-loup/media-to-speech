@@ -20,12 +20,16 @@ RUN pip install uv
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 WORKDIR /app
 
-# Copy dependency files
+# Copy dependency files and README (required by pyproject.toml)
 COPY pyproject.toml ./
 COPY uv.lock* ./
+COPY README.md ./
 
 # Install Python dependencies using uv
 RUN uv sync --frozen --no-dev
+
+# Production stage
+FROM base as production
 
 # Copy application code
 COPY src/ ./src/
