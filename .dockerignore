@@ -1,7 +1,6 @@
 # Git
 .git
 .gitignore
-README.md
 
 # Python
 __pycache__
