@@ -1,0 +1,233 @@
+## Executive Summary
+
+This micro-service will run in a Docker container and expose a simple REST/SSE/WebSocket API that accepts a **file-path pointing to a local audio or video file**, converts the media to lossless WAV if necessary, splits it into ≤ 25 MB chunks (the maximum size accepted by the OpenAI Speech-to-Text endpoint), sends those chunks to OpenAI in **parallel but rate-limited** fashion, then re-assembles the results into a single JSON transcript with continuously increasing, gap-free time-stamps.  Job state is streamed into a **Redis** key-value store so that clients can subscribe for real-time progress updates.  The service surfaces two endpoints: **POST /transcriptions** (submit a new job) and **GET /jobs/{id}\[?stream]** (poll or stream status).  This PRD lays out the goals, requirements, architecture, API contract, operational considerations, and open questions needed to deliver a first production release.
+
+---
+
+## 1 – Goals & Non-Goals
+
+|         | Goals                                                                          | Non-Goals                                           |
+| ------- | ------------------------------------------------------------------------------ | --------------------------------------------------- |
+| **G-1** | Support video (e.g., MP4, MKV, and all common video formats) and common audio formats (MP3, AAC, FLAC, etc.) | Editing or redacting audio                          |
+| **G-2** | Comply with OpenAI’s ≤ 25 MB per request limit by chunking                     | Speech-to-text vendor portability is deferred to v2 |
+| **G-3** | Provide near-real-time job progress via Redis pub/sub & HTTP Streaming         | End-user front-end UI                               |
+| **G-4** | Horizontal scalability (stateless workers, shared Redis & object store)        | Large-scale offline analytics                       |
+| **G-5** | Observability: metrics, logs, health-checks                                    | Autoscaling policy (handled by platform)            |
+
+---
+
+## 2 – Background
+
+* OpenAI Whisper-based `/audio/transcriptions` endpoint rejects files larger than **25 MB**, so client-side chunking is mandatory ([community.openai.com][1], [community.openai.com][2]).
+* FFmpeg can convert virtually any container/codec combination to WAV in a single command (`ffmpeg -i input.mp4 output.wav`) ([superuser.com][3], [stackoverflow.com][4]).
+* FFmpeg’s `-f segment` or `-segment_time` options can split an audio file by duration or size; `-fs 25M` caps output chunk size to 25 MB ([stackoverflow.com][5], [unix.stackexchange.com][6]).
+* Redis Streams/Pub-Sub are lightweight mechanisms for broadcasting state changes across micro-services and to external clients ([redis.io][7], [medium.com][8]).
+* Following micro-service best practices—clear service boundaries, dedicated data stores, API gateway, health checks—simplifies ops and future scale-out ([osohq.com][9], [last9.io][10], [medium.com][11]).
+* OpenAI API calls can be fired in parallel (async or thread-pooled) as long as rate limits are respected ([community.openai.com][12]).
+
+---
+
+## 3 – User Stories
+
+1. **Uploader**: “As a backend engineer, I post a path to a video file and receive a Job ID so I can poll or subscribe for transcription progress.”
+2. **Subscriber**: “As a downstream service, I subscribe to `transcribe:jobs:{id}` in Redis and update my UI with percentage complete.”
+3. **Ops**: “As an SRE, I query `/healthz` and scrape Prometheus metrics to ensure the service is healthy and meeting its SLOs.”
+
+---
+
+## 4 – Functional Requirements
+
+### 4.1 Ingestion & Media Handling
+
+| #       | Requirement                                                                         | Notes                                  |
+| ------- | ----------------------------------------------------------------------------------- | -------------------------------------- |
+| **F-1** | Accept absolute or container-relative file paths via JSON payload                   | Validate existence & read-permission   |
+| **F-2** | Detect media type via FFprobe; if video or non-WAV audio, convert to 16-bit PCM WAV | FFmpeg command per citations           |
+| **F-3** | Split WAV into ≤ 25 MB chunks using `ffmpeg -i ... -fs 25M -f segment ...`          | Store chunks in `/tmp/{job-id}` folder |
+| **F-4** | delete all chunks after succeeded or failed jobs                                    |Delete job's chunks in `/tmp/{job-id}` folder|
+
+### 4.2 Transcription Workflow
+
+| #       | Requirement                                                                                                                                   |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **F-4** | Dispatch chunk requests to OpenAI with configurable parallelism, respecting global QPS limit and exponential back-off on 429/500s             |
+| **F-5** | Normalize returned offsets (start, end) by adding cumulative duration of previous chunks so that final timeline has no gaps or overlap        |
+| **F-6** | Aggregate into `transcript.json`:<br>`{ "chunks": [ { "index":0,"start":0,"end":12.34,"text":"..." }, ... ], "text":"full-concat" }`          |
+| **F-7** | Persist intermediate state in Redis keys:<br>`transcribe:jobs:{id}:state`, `:progress`, `:error`, plus Pub/Sub channel `transcribe:jobs:{id}` |
+| **F-8** | Expose `/jobs/{id}?stream=true` that upgrades to **SSE** or **WebSocket** for push updates; returns JSON patches mirroring Redis messages     |
+
+### 4.3 Job Lifecycle
+
+| State          | Description                                    |
+| -------------- | ---------------------------------------------- |
+| **QUEUED**     | File accepted, awaiting worker                 |
+| **PROCESSING** | Converting / chunking / transcribing           |
+| **COMPLETED**  | All chunks merged successfully                 |
+| **FAILED**     | Terminal error logged; client receives message |
+
+---
+
+## 5 – Non-Functional Requirements
+
+### 5.1 Performance
+
+* **Latency target**: ≤ ( media length × 1.2 ) wall-clock for 1-hour file with default 8-way parallelism.
+* **Throughput**: Sustain 50 concurrent jobs on a single worker pod.
+
+### 5.2 Reliability & Fault-Tolerance
+
+* Retries with idempotency key on network errors; chunk processing is atomic—either uploaded & stored or retried.
+* Worker crash mid-job must be recoverable by reading Redis state and resuming remaining chunks.
+
+### 5.3 Security
+
+* JWT bearer token on all HTTP endpoints; secrets (OpenAI key, Redis URL) injected via Docker secrets or K8s secrets.
+* Uploaded paths are sandbox-checked to prevent directory traversal.
+
+### 5.4 Observability
+
+* `/healthz` (basic) and `/readyz` (dependency checks) endpoints with Docker **HEALTHCHECK** directive for orchestration ([last9.io][10], [medium.com][11]).
+* Prometheus `/metrics` for request count, average chunk latency, error counts.
+
+---
+
+## 6 – High-Level Architecture
+
+```
++-----------+      POST /transcriptions      +------------------+
+|  Client   |  ───────────────────────────▶  |  API Gateway /   |
+| (Uploader)|                                 |  Transcribe API  |
++-----------+                                 +------------------+
+       ▲                                               │ enqueue (Redis List)
+       │ GET /jobs/{id}                                ▼
++-----------+                                 +------------------+
+|  Browser  |◀──── SSE / WS ─────────── Redis Pub/Sub ──► Worker Pool (N)
+|  / UI     |                                 +------------------+
++-----------+                                         │
+                                                      ▼
+                                             FFmpeg convert/chunk
+                                                      │
+                                                      ▼
+                                             OpenAI STT (parallel)
+                                                      │
+                                                      ▼
+                                             Merge & store transcript
+```
+
+**Stateful components** (Redis, object store) are external and replicated; worker nodes are stateless and can scale horizontally.
+
+---
+
+## 7 – API Contract (v1)
+
+### 7.1 POST /transcriptions
+
+```http
+Content-Type: application/json
+{
+  "file_path": "/data/my_video.mp4",
+  "language": "en",
+  "async": true
+}
+```
+
+*Returns* `202 Accepted`
+
+```json
+{ "job_id": "abc123", "state": "QUEUED" }
+```
+
+### 7.2 GET /jobs/{id}
+
+*Query params*:
+`stream=true` → SSE (`text/event-stream`) or WS
+
+*Sample response*
+
+```json
+{
+  "job_id": "abc123",
+  "state": "PROCESSING",
+  "progress": 0.42,
+  "chunks_done": 5,
+  "chunks_total": 12
+}
+```
+
+### 7.3 DELETE /jobs/{id}
+
+Cancels a running job (best-effort). Returns `202`.
+
+---
+
+## 8 – Data Model (Redis Keys)
+
+| Key Pattern                     | Type         | TTL    | Description                       |
+| ------------------------------- | ------------ | ------ | --------------------------------- |
+| `transcribe:jobs:{id}:meta`     | HASH         | 7 days | file path, language, created\_at  |
+| `transcribe:jobs:{id}:state`    | STRING       | 7 days | current state enum                |
+| `transcribe:jobs:{id}:progress` | STRING (0-1) | 7 days | completion ratio                  |
+| `transcribe:jobs:{id}`          | STREAM       | 7 days | real-time updates for subscribers |
+
+---
+
+## 9 – Metrics & SLOs
+
+| Metric                  | SLI      | SLO     |
+| ----------------------- | -------- | ------- |
+| Successful jobs / total | ≥ 99.5 % | monthly |
+| 50th pct chunk latency  | ≤ 5 s    | daily   |
+| API p95 response time   | ≤ 100 ms | daily   |
+
+Alerts fire when SLO budgets burn > 2 %.
+
+---
+
+## 10 – Test Plan
+
+* **Unit**: FFmpeg wrapper, timestamp adjuster, Redis adapter
+* **Integration**: End-to-end against 5 min, 30 min, 2 hr media with fault injection
+* **Load**: 100 concurrent 30-min files; verify scaling, memory footprint
+* **Chaos**: Kill worker half-way; ensure job resumes
+
+---
+
+
+---
+
+## 12 – Open Questions
+
+* Should chunk metadata be persisted in object storage for auditing?
+* Future support for **Azure OpenAI** or **Google Speech-to-Text**?
+
+---
+
+### References
+
+1. OpenAI community thread on **25 MB** transcription limit ([community.openai.com][1])
+2. Whisper API file limit acknowledgement ([community.openai.com][2])
+3. FFmpeg WAV extraction example ([superuser.com][3])
+4. FFmpeg WAV conversion answer ([stackoverflow.com][4])
+5. FFmpeg segment splitting guidance ([stackoverflow.com][5])
+6. Unix SE command for segmenting audio ([unix.stackexchange.com][6])
+7. Redis Streams for micro-services ([redis.io][7])
+8. Redis Pub/Sub deep dive ([medium.com][8])
+9. Micro-services best-practice checklist (Oso) ([osohq.com][9])
+10. Docker health-check primer (Last9) ([last9.io][10])
+11. Adding HEALTHCHECK in Dockerfile ([medium.com][11])
+12. Parallelising OpenAI requests discussion ([community.openai.com][12])
+13. Guide on documenting micro-services ([vfunction.com][13])
+
+[1]: https://community.openai.com/t/cant-find-a-way-to-transcribe-files-bigger-than-25-mb/682062?utm_source=chatgpt.com "Can't find a way to transcribe files bigger than 25 MB - API"
+[2]: https://community.openai.com/t/whisper-api-increase-file-limit-25-mb/566754?utm_source=chatgpt.com "Whisper API, increase file limit >25 MB"
+[3]: https://superuser.com/questions/609740/extracting-wav-from-mp4-while-preserving-the-highest-possible-quality?utm_source=chatgpt.com "Extracting wav from mp4 while preserving the highest possible quality"
+[4]: https://stackoverflow.com/questions/61491258/convert-mp4-to-wav-file-containing-signed-16-bit-pcm-samples-in-ffmpeg?utm_source=chatgpt.com "convert MP4 to WAV file (containing signed 16-bit PCM samples) in ..."
+[5]: https://stackoverflow.com/questions/67320808/how-to-split-audio-file-into-equal-length-segments-with-ffmpeg?utm_source=chatgpt.com "How to split audio file into equal-length segments with ffmpeg?"
+[6]: https://unix.stackexchange.com/questions/280767/how-do-i-split-an-audio-file-into-multiple?utm_source=chatgpt.com "ffmpeg - How do I split an audio file into multiple?"
+[7]: https://redis.io/learn/howtos/solutions/microservices/interservice-communication?utm_source=chatgpt.com "Microservices Communication with Redis Streams"
+[8]: https://medium.com/%40joudwawad/redis-pub-sub-in-depth-d2c6f4334826?utm_source=chatgpt.com "Redis Pub/Sub In-Depth | by Joud W. Awad | Medium"
+[9]: https://www.osohq.com/learn/microservices-best-practices?utm_source=chatgpt.com "13 Microservices Best Practices - Oso"
+[10]: https://last9.io/blog/docker-compose-health-checks/?utm_source=chatgpt.com "Docker Compose Health Checks: An Easy-to-follow Guide - Last9"
+[11]: https://medium.com/%40thkhoobsmart/adding-health-check-to-docker-container-b4eb1d554f36?utm_source=chatgpt.com "Adding Health Check to Docker Container | by Khoo Teik Heong"
+[12]: https://community.openai.com/t/parallelise-calls-to-the-api-is-it-possible-and-how/35498?utm_source=chatgpt.com "Parallelise calls to the API - is it possible and how?"
+[13]: https://vfunction.com/blog/guide-on-documenting-microservices/?utm_source=chatgpt.com "The comprehensive guide to documenting microservices - vFunction"
