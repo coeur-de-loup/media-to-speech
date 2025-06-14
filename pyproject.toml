@@ -36,8 +36,8 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.setuptools]
-packages = ["media_to_text"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/media_to_text"]
 
 [tool.black]
 line-length = 88
