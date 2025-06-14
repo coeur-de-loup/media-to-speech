@@ -1,0 +1,71 @@
+# Git
+.git
+.gitignore
+README.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.pytest_cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# Node.js (if any)
+node_modules
+npm-debug.log*
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Development
+.env.local
+.env.development
+.env.test
+.env.production
+*.log
+
+# Testing
+htmlcov/
+.coverage
+.pytest_cache/
+.coverage.*
+
+# Documentation
+docs/_build/
+site/
+
+# TaskMaster (keeping configuration but excluding reports)
+.taskmaster/reports/
+.taskmaster/logs/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
