@@ -262,7 +262,7 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.25.0.0/16
     labels:
       - "com.media-to-text.network=main"
 
