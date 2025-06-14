@@ -1,0 +1,113 @@
+version: '3.8'
+
+# Simplified Media-to-Text Microservice - Uses Default Docker Networking
+# This version avoids custom network configurations to prevent subnet conflicts
+
+services:
+  # ===========================
+  # API Service - FastAPI Application
+  # ===========================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: media-to-text-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+      - "${METRICS_PORT:-9090}:9090"
+    environment:
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DEBUG=${DEBUG:-false}
+      
+      # OpenAI Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      - OPENAI_MAX_CHUNK_SIZE_MB=${OPENAI_MAX_CHUNK_SIZE_MB:-25}
+      - OPENAI_MAX_PARALLEL_REQUESTS=${OPENAI_MAX_PARALLEL_REQUESTS:-8}
+      
+      # Redis Configuration
+      - REDIS_URL=redis://redis:6379
+      - REDIS_TTL_DAYS=${REDIS_TTL_DAYS:-7}
+      - REDIS_JOBS_PREFIX=${REDIS_JOBS_PREFIX:-jobs}
+      
+      # File Processing Configuration
+      - TEMP_DIR=/tmp/media-to-text
+      - CLEANUP_TEMP_FILES=${CLEANUP_TEMP_FILES:-true}
+      
+      # FFmpeg Configuration
+      - FFMPEG_CONTAINER_URL=http://ffmpeg:8080
+      
+      # Monitoring Configuration
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - METRICS_PORT=9090
+      
+      # Logging Configuration
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENABLE_STRUCTURED_LOGGING=${ENABLE_STRUCTURED_LOGGING:-true}
+      - ENABLE_AXIOM=${ENABLE_AXIOM:-false}
+      - AXIOM_TOKEN=${AXIOM_TOKEN:-}
+      - AXIOM_DATASET=${AXIOM_DATASET:-media-to-text-logs}
+      - LOG_SENSITIVE_DATA=${LOG_SENSITIVE_DATA:-false}
+    volumes:
+      - media_storage:/tmp/media-to-text
+      - ./data:/app/data
+    depends_on:
+      - redis
+      - ffmpeg
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ===========================
+  # Redis Service
+  # ===========================
+  redis:
+    image: redis:7.2-alpine
+    container_name: media-to-text-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory ${REDIS_MAX_MEMORY:-512mb}
+
+  # ===========================
+  # FFmpeg Service
+  # ===========================
+  ffmpeg:
+    image: linuxserver/ffmpeg:version-6.0-cli
+    container_name: media-to-text-ffmpeg
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+    volumes:
+      - media_storage:/tmp
+      - ./data:/app/data
+    restart: unless-stopped
+    command: sh -c "echo 'FFmpeg ready'; tail -f /dev/null"
+    healthcheck:
+      test: ["CMD", "ffmpeg", "-version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ===========================
+# Volumes Only - No Custom Networks
+# ===========================
+volumes:
+  redis_data:
+    driver: local
+  media_storage:
+    driver: local
