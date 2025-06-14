@@ -1,6 +1,6 @@
 # Task ID: 13
 # Title: Implement Worker Crash Recovery and Job Resumption (uv/FastAPI Environment)
-# Status: in-progress
+# Status: done
 # Dependencies: 9, 6
 # Priority: medium
 # Description: Ensure that if a worker crashes mid-job, it can resume processing from Redis state, using the FastAPI/uv stack.
@@ -303,7 +303,7 @@ Comprehensive chaos testing suite has been fully implemented to validate crash r
 Chaos testing validates that crash recovery is robust, reliable, and maintains data consistency under all failure scenarios.
 </info added on 2025-06-14T18:05:36.155Z>
 
-## 6. Document Crash Recovery and Idempotency Mechanisms [pending]
+## 6. Document Crash Recovery and Idempotency Mechanisms [done]
 ### Dependencies: 13.5
 ### Description: Create comprehensive documentation describing the crash recovery, job resumption, idempotency, and event publishing processes.
 ### Details:

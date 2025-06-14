@@ -787,7 +787,7 @@
       "id": 13,
       "title": "Implement Worker Crash Recovery and Job Resumption (uv/FastAPI Environment)",
       "description": "Ensure that if a worker crashes mid-job, it can resume processing from Redis state, using the FastAPI/uv stack.",
-      "status": "in-progress",
+      "status": "done",
       "dependencies": [
         9,
         6
@@ -853,7 +853,7 @@
             5
           ],
           "details": "Include architecture diagrams, flowcharts, and instructions for operating and troubleshooting the system.",
-          "status": "pending"
+          "status": "done"
         }
       ]
     },
@@ -861,7 +861,7 @@
       "id": 14,
       "title": "Write Unit, Integration, Load, and Chaos Tests (uv/FastAPI Environment)",
       "description": "Develop comprehensive tests for all components as per the test plan, ensuring tests are compatible with FastAPI and uv.",
-      "status": "pending",
+      "status": "in-progress",
       "dependencies": [
         7,
         10,
@@ -879,7 +879,7 @@
           "description": "Develop unit tests for individual components and functions to ensure correctness at the smallest level.",
           "dependencies": [],
           "details": "Identify core modules and write unit tests using the chosen testing framework. Ensure high coverage of critical logic.",
-          "status": "pending"
+          "status": "in-progress"
         },
         {
           "id": 2,

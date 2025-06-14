@@ -1,6 +1,6 @@
 # Task ID: 14
 # Title: Write Unit, Integration, Load, and Chaos Tests (uv/FastAPI Environment)
-# Status: pending
+# Status: in-progress
 # Dependencies: 7, 10, 11, 12, 13
 # Priority: high
 # Description: Develop comprehensive tests for all components as per the test plan, ensuring tests are compatible with FastAPI and uv.
@@ -18,7 +18,7 @@
 - Integration test: confirm all FastAPI endpoints are accessible without authentication.
 
 # Subtasks:
-## 1. Unit Test Development [pending]
+## 1. Unit Test Development [in-progress]
 ### Dependencies: None
 ### Description: Develop unit tests for individual components and functions to ensure correctness at the smallest level.
 ### Details:
