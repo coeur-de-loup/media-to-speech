@@ -1,0 +1,48 @@
+# Task ID: 12
+# Title: Implement Health, Readiness, and Metrics Endpoints with FastAPI
+# Status: pending
+# Dependencies: 1
+# Priority: medium
+# Description: Expose /healthz, /readyz, and /metrics endpoints using FastAPI for orchestration and observability.
+# Details:
+- /healthz: returns 200 if service is up (FastAPI route).
+- /readyz: checks Redis and OpenAI API connectivity.
+- /metrics: Prometheus format (job count, chunk latency, error counts).
+- Integrate with Docker HEALTHCHECK.
+- Ensure all endpoints are implemented as FastAPI routes and dependencies managed via uv.
+
+# Test Strategy:
+- Unit test: endpoint responses.
+- Integration test: simulate dependency failures and verify readiness/metrics.
+
+# Subtasks:
+## 1. Implement /healthz Endpoint [pending]
+### Dependencies: None
+### Description: Create the /healthz endpoint to report basic application health status.
+### Details:
+Develop an HTTP endpoint (/healthz) that returns a simple success response if the application is running.
+
+## 2. Implement /readyz Checks [pending]
+### Dependencies: 12.1
+### Description: Develop the /readyz endpoint to verify readiness, including checks for dependencies.
+### Details:
+Create an HTTP endpoint (/readyz) that performs checks on external dependencies (e.g., database, cache) and returns readiness status.
+
+## 3. Implement /metrics Endpoint [pending]
+### Dependencies: 12.1
+### Description: Expose application metrics via a /metrics endpoint for observability.
+### Details:
+Add a /metrics endpoint that provides Prometheus-compatible metrics about the application's performance and resource usage.
+
+## 4. Integrate Docker HEALTHCHECK [pending]
+### Dependencies: 12.1
+### Description: Configure Dockerfile to use HEALTHCHECK with the /healthz endpoint.
+### Details:
+Update the Dockerfile to include a HEALTHCHECK instruction that periodically queries the /healthz endpoint to determine container health.
+
+## 5. Develop and Execute Test Scenarios [pending]
+### Dependencies: 12.1, 12.2, 12.3, 12.4
+### Description: Create and run tests to validate /healthz, /readyz, /metrics endpoints, and Docker HEALTHCHECK integration.
+### Details:
+Write automated and manual test cases to ensure all endpoints function correctly and Docker HEALTHCHECK operates as expected.
+

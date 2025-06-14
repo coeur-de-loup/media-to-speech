@@ -1,0 +1,47 @@
+# Task ID: 7
+# Title: Implement Timestamp Normalization and Transcript Aggregation (uv/FastAPI Environment)
+# Status: pending
+# Dependencies: 6
+# Priority: high
+# Description: Normalize chunk offsets and merge results into a single transcript.json with gap-free, increasing timestamps, using the FastAPI/uv stack.
+# Details:
+- For each chunk, adjust start/end offsets by adding cumulative duration of previous chunks.
+- Concatenate text fields for full transcript.
+- Output format: { "chunks": [ ... ], "text": "..." }.
+- Store transcript.json in /tmp/{job-id}/ and update Redis state to COMPLETED.
+
+# Test Strategy:
+- Unit test: offset normalization, aggregation logic.
+- Integration test: verify merged transcript for various chunk counts.
+
+# Subtasks:
+## 1. Implement Offset Normalization Logic [pending]
+### Dependencies: None
+### Description: Develop logic to normalize offsets within the transcript data to ensure consistency across segments.
+### Details:
+This involves adjusting the start and end times of transcript segments so that they are relative to a common baseline, handling any overlaps or gaps.
+
+## 2. Aggregate Transcript Segments [pending]
+### Dependencies: 7.1
+### Description: Combine normalized transcript segments into a single, coherent transcript.
+### Details:
+After normalization, merge all transcript pieces in the correct order, ensuring no data is lost or duplicated.
+
+## 3. Format Output for Consumption [pending]
+### Dependencies: 7.2
+### Description: Format the aggregated transcript into the desired output structure (e.g., JSON, plain text, or SRT).
+### Details:
+Apply formatting rules and structure the output according to requirements for downstream consumption or display.
+
+## 4. Store Formatted Output to File [pending]
+### Dependencies: 7.3
+### Description: Save the formatted transcript output to a file in the appropriate location.
+### Details:
+Handle file naming, path management, and ensure the file is written successfully and is accessible for later use.
+
+## 5. Update Redis State [pending]
+### Dependencies: 7.4
+### Description: Update Redis with the status and location of the stored transcript file.
+### Details:
+Set relevant keys/values in Redis to reflect the completion of processing and provide references to the output file for other services.
+

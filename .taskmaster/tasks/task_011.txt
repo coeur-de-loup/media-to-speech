@@ -1,0 +1,48 @@
+# Task ID: 11
+# Title: Implement DELETE /jobs/{id} Endpoint (Job Cancellation) with FastAPI
+# Status: pending
+# Dependencies: 9, 8
+# Priority: medium
+# Description: Allow clients to cancel a running job via FastAPI, marking it as FAILED and cleaning up resources.
+# Details:
+- On DELETE, set job state to FAILED in Redis and publish update.
+- Attempt to stop any in-progress chunk processing.
+- Trigger cleanup of /tmp/{job-id}/.
+- Return 202 Accepted on success.
+
+# Test Strategy:
+- Unit test: cancellation logic, Redis state update.
+- Integration test: cancel running job and verify cleanup and state.
+- Integration test: confirm FastAPI endpoint is accessible without authentication.
+
+# Subtasks:
+## 1. Implement Endpoint Logic [pending]
+### Dependencies: None
+### Description: Design and implement the API endpoint that initiates the processing workflow, handling incoming requests and validating input.
+### Details:
+Define the endpoint route, parse request data, and ensure proper validation and error handling before proceeding to state management.
+
+## 2. Integrate Redis State Update [pending]
+### Dependencies: 11.1
+### Description: Add logic to update and manage processing state in Redis, reflecting the current status of each request.
+### Details:
+Ensure the endpoint updates Redis with relevant state changes (e.g., started, in-progress, completed, failed) and handles potential race conditions.
+
+## 3. Handle In-Progress Processing Interruption [pending]
+### Dependencies: 11.2
+### Description: Implement mechanisms to detect and interrupt in-progress processing tasks as needed, ensuring consistency and reliability.
+### Details:
+Design logic to check for interruption signals, gracefully stop processing, and update Redis state accordingly.
+
+## 4. Trigger Cleanup Logic [pending]
+### Dependencies: 11.3
+### Description: Develop and integrate cleanup routines that are triggered after processing interruption or completion to release resources and maintain system hygiene.
+### Details:
+Ensure cleanup logic is robust, idempotent, and can handle partial failures or retries.
+
+## 5. Implement Response Handling and Testing [pending]
+### Dependencies: 11.4
+### Description: Finalize response logic for the endpoint and create comprehensive tests to validate all workflow scenarios, including edge cases.
+### Details:
+Return appropriate responses based on processing outcomes and write tests for endpoint logic, Redis updates, interruption, and cleanup.
+

@@ -1,0 +1,55 @@
+# Task ID: 15
+# Title: Create Docker Compose File for Multi-Container Setup (uv/FastAPI Environment)
+# Status: pending
+# Dependencies: 12
+# Priority: medium
+# Description: Develop a docker-compose.yml file to orchestrate the ffmpegofficial container, the FastAPI/uv-based API service, and the Reddit container, ensuring proper networking and configuration for local development and testing.
+# Details:
+1. Define services in docker-compose.yml: (a) ffmpegofficial: Use the official FFmpeg image, configure volumes if needed for media processing, and expose necessary ports. (b) api: Build from the local Dockerfile or use a prebuilt image, set environment variables (e.g., Redis connection, OpenAI keys), and link to ffmpegofficial and Reddit containers. The API service should use FastAPI as the framework and uv as the Python dependency manager. (c) reddit: Use the appropriate Reddit container image, configure authentication/secrets, and expose required ports. 2. Set up a shared network for inter-container communication. 3. Configure volumes for persistent data (e.g., /tmp, logs). 4. Add healthcheck sections for each service, leveraging the /healthz endpoint for the FastAPI API (from Task 12). 5. Ensure service dependencies (e.g., API waits for ffmpeg and Reddit to be healthy). 6. Document usage: starting, stopping, and troubleshooting the stack, including FastAPI/uv-specific notes. 7. Optionally, add support for .env files for configuration flexibility.
+
+# Test Strategy:
+1. Run 'docker-compose up' and verify all three containers start successfully and can communicate. 2. Confirm the API container can invoke ffmpeg commands via the ffmpegofficial service. 3. Validate the Reddit container is accessible and functional. 4. Use 'docker-compose ps' and logs to check health status and readiness. 5. Test the /healthz endpoint of the FastAPI API via curl from the host and from within other containers. 6. Stop and restart individual containers to ensure proper recovery and networking. 7. Review documentation for clarity and completeness, including FastAPI/uv usage.
+
+# Subtasks:
+## 1. Define Service Specifications [pending]
+### Dependencies: None
+### Description: Create detailed service definitions for each container, specifying images, environment variables, ports, and resource limits.
+### Details:
+List all required services, their configurations, and any specific runtime parameters needed for orchestration.
+
+## 2. Configure Network Settings [pending]
+### Dependencies: 15.1
+### Description: Set up network configurations to enable communication between containers and with external systems.
+### Details:
+Define custom networks, assign aliases, and configure network modes as necessary for service discovery and isolation.
+
+## 3. Set Up Persistent Volumes [pending]
+### Dependencies: 15.1
+### Description: Establish volume configurations for data persistence and sharing between containers.
+### Details:
+Specify named volumes, mount points, and access permissions to ensure data durability and accessibility.
+
+## 4. Integrate Healthchecks [pending]
+### Dependencies: 15.1
+### Description: Add healthcheck definitions to monitor the status and readiness of each service.
+### Details:
+Configure healthcheck commands, intervals, retries, and timeouts for all critical containers.
+
+## 5. Manage Service Dependencies [pending]
+### Dependencies: 15.1, 15.2, 15.3, 15.4
+### Description: Define and enforce startup and runtime dependencies between services.
+### Details:
+Use orchestration features to specify service order, wait conditions, and restart policies.
+
+## 6. Write Comprehensive Documentation [pending]
+### Dependencies: 15.1, 15.2, 15.3, 15.4, 15.5
+### Description: Document the architecture, configuration, and usage instructions for the multi-container setup.
+### Details:
+Include diagrams, configuration samples, and troubleshooting tips for users and maintainers.
+
+## 7. Validate with Automated Tests [pending]
+### Dependencies: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6
+### Description: Develop and execute tests to verify the correct operation of the orchestrated containers.
+### Details:
+Implement integration and end-to-end tests to ensure services interact as expected and healthchecks function properly.
+

@@ -1,0 +1,54 @@
+# Task ID: 13
+# Title: Implement Worker Crash Recovery and Job Resumption (uv/FastAPI Environment)
+# Status: pending
+# Dependencies: 9, 6
+# Priority: medium
+# Description: Ensure that if a worker crashes mid-job, it can resume processing from Redis state, using the FastAPI/uv stack.
+# Details:
+- On startup, scan Redis for jobs in PROCESSING state.
+- Resume chunk processing for incomplete jobs.
+- Ensure idempotency for already-processed chunks.
+- Publish recovery events to Redis stream.
+- Ensure all worker dependencies are managed via uv and compatible with FastAPI.
+
+# Test Strategy:
+- Unit test: recovery logic, idempotency.
+- Chaos test: kill worker mid-job and verify resumption.
+
+# Subtasks:
+## 1. Implement Redis Scanning on Startup [pending]
+### Dependencies: None
+### Description: Develop logic to scan Redis for existing jobs or relevant data when the application starts, ensuring awareness of in-progress or incomplete jobs.
+### Details:
+This involves connecting to Redis, querying for job keys or relevant data structures, and loading their state into memory or a processing queue.
+
+## 2. Develop Job Resumption Logic [pending]
+### Dependencies: 13.1
+### Description: Create mechanisms to resume jobs that were in progress or incomplete at the time of the last shutdown or crash.
+### Details:
+Utilize the data loaded from Redis to identify jobs needing resumption, and safely restart their processing from the correct state.
+
+## 3. Add Idempotency Checks [pending]
+### Dependencies: 13.2
+### Description: Ensure that job processing is idempotent, so that reprocessing the same job does not cause unintended side effects or duplicate work.
+### Details:
+Implement checks using Redis or other mechanisms to track job completion and prevent duplicate processing.
+
+## 4. Publish Recovery Events [pending]
+### Dependencies: 13.2
+### Description: Implement event publishing to notify external systems or logs when a recovery or job resumption occurs.
+### Details:
+Integrate with an event bus or logging system to emit structured events whenever a job is resumed after a crash or restart.
+
+## 5. Perform Chaos Testing [pending]
+### Dependencies: 13.3, 13.4
+### Description: Design and execute chaos tests to simulate crashes and verify the robustness of recovery, idempotency, and event publishing logic.
+### Details:
+Automate tests that forcibly crash the system and validate that jobs are resumed correctly, no duplicates occur, and recovery events are published.
+
+## 6. Document Crash Recovery and Idempotency Mechanisms [pending]
+### Dependencies: 13.5
+### Description: Create comprehensive documentation describing the crash recovery, job resumption, idempotency, and event publishing processes.
+### Details:
+Include architecture diagrams, flowcharts, and instructions for operating and troubleshooting the system.
+

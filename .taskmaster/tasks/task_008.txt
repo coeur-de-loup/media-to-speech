@@ -1,0 +1,40 @@
+# Task ID: 8
+# Title: Implement Job Cleanup and Resource Deletion (uv/FastAPI Environment)
+# Status: pending
+# Dependencies: 7
+# Priority: medium
+# Description: Delete all temporary files and chunks in /tmp/{job-id}/ after job completion or failure, ensuring compatibility with the FastAPI/uv stack.
+# Details:
+- On job COMPLETED or FAILED, recursively delete /tmp/{job-id}/ directory.
+- Ensure cleanup runs even if worker crashes (on restart, check for stale jobs).
+- Remove Redis keys after TTL expires (7 days).
+
+# Test Strategy:
+- Unit test: cleanup logic, directory deletion.
+- Integration test: verify /tmp/{job-id}/ is empty after job ends.
+
+# Subtasks:
+## 1. Implement Cleanup Trigger Logic [pending]
+### Dependencies: None
+### Description: Design and implement the logic that determines when the cleanup process should be initiated based on system events or schedules.
+### Details:
+This includes setting up event listeners, timers, or hooks that will trigger the cleanup process under appropriate conditions.
+
+## 2. Develop Recursive File Deletion [pending]
+### Dependencies: 8.1
+### Description: Create a function to recursively delete files and directories as part of the cleanup process.
+### Details:
+Ensure the function safely traverses directories and removes all nested files and folders, handling errors gracefully.
+
+## 3. Integrate Crash Recovery Checks [pending]
+### Dependencies: 8.2
+### Description: Add logic to check for incomplete cleanups or crashes and resume or rollback as needed.
+### Details:
+Implement mechanisms to detect interrupted cleanup operations and ensure system consistency upon restart.
+
+## 4. Manage Redis TTL for Cleanup Metadata [pending]
+### Dependencies: 8.3
+### Description: Set and manage Time-To-Live (TTL) values in Redis for metadata related to cleanup operations.
+### Details:
+Ensure that metadata stored in Redis expires appropriately to prevent stale data and support efficient resource management.
+

@@ -1,0 +1,64 @@
+# Task ID: 3
+# Title: Implement POST /transcriptions Endpoint with FastAPI
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Create the FastAPI endpoint to accept transcription jobs, validate input, and enqueue job metadata in Redis.
+# Details:
+- Define POST /transcriptions route using FastAPI.
+- Accept JSON payload with file_path, language, and async fields.
+- Validate file existence, absolute/container-relative path, and read permissions.
+- Check for directory traversal attempts.
+- Generate unique job_id (UUID).
+- Store job metadata in Redis (transcribe:jobs:{id}:meta, :state=QUEUED).
+- Publish initial job state to Redis stream transcribe:jobs:{id}.
+- Return 202 Accepted with job_id and state.
+
+# Test Strategy:
+- Unit test: input validation, Redis key creation.
+- Integration test: submit valid/invalid jobs and check Redis state.
+- Integration test: confirm FastAPI endpoint is accessible without authentication.
+
+# Subtasks:
+## 1. Endpoint Creation [pending]
+### Dependencies: None
+### Description: Set up the API endpoint to handle incoming requests for the job submission process.
+### Details:
+Define the route, HTTP method, and handler function in the web framework of choice.
+
+## 2. Input Validation [pending]
+### Dependencies: 3.1
+### Description: Implement validation logic to ensure all required inputs are present and correctly formatted.
+### Details:
+Check for missing fields, incorrect data types, and enforce any business rules on the input data.
+
+## 3. File Checks [pending]
+### Dependencies: 3.2
+### Description: Perform secure file handling and validation for any uploaded files.
+### Details:
+Verify file types, sizes, and scan for potential security threats before processing.
+
+## 4. Job ID Generation [pending]
+### Dependencies: 3.3
+### Description: Generate a unique job_id for each valid request to track the job throughout its lifecycle.
+### Details:
+Use a secure random or UUID generator to ensure uniqueness and prevent collisions.
+
+## 5. Redis Metadata Storage [pending]
+### Dependencies: 3.4
+### Description: Store job metadata in Redis for tracking and retrieval.
+### Details:
+Save relevant job details keyed by job_id in Redis using appropriate data structures.
+
+## 6. Redis Stream Publishing [pending]
+### Dependencies: 3.5
+### Description: Publish the job information to a Redis stream for downstream processing.
+### Details:
+Format the job data and push it to the designated Redis stream channel.
+
+## 7. Response Formatting and Testing [pending]
+### Dependencies: 3.6
+### Description: Format the API response and write tests to ensure endpoint correctness and robustness.
+### Details:
+Return appropriate status codes and messages; implement unit and integration tests for all logic.
+

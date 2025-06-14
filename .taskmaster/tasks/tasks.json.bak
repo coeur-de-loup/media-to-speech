@@ -1,0 +1,188 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Setup Project Repository and Docker Environment with uv and FastAPI",
+      "description": "Initialize the project repository, set up Dockerfile, and configure the base environment for the microservice using 'uv' as the Python dependency manager and FastAPI as the API framework.",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
+      "details": "- Initialize a git repository and create a project structure (src, tests, Docker, etc.).\n- Use 'uv' to manage Python dependencies; create pyproject.toml and requirements files as needed.\n- Write a Dockerfile that installs Python 3.11+, FFmpeg, Redis client, and sets up 'uv' and FastAPI.\n- Ensure Dockerfile includes HEALTHCHECK directive for orchestration.\n- Add .dockerignore and .gitignore files.\n- Use environment variables for secrets (OpenAI key, Redis URL).\n- Scaffold FastAPI application entrypoint (e.g., main.py) and ensure it is used as the API server.",
+      "testStrategy": "- Build Docker image and run container.\n- Validate that FFmpeg and Redis CLI are available in the container.\n- Check that healthcheck endpoint is reachable.\n- Confirm FastAPI application starts and responds to root or /healthz endpoint.",
+      "subtasks": []
+    },
+    {
+      "id": 3,
+      "title": "Implement POST /transcriptions Endpoint with FastAPI",
+      "description": "Create the FastAPI endpoint to accept transcription jobs, validate input, and enqueue job metadata in Redis.",
+      "status": "pending",
+      "dependencies": [],
+      "priority": "high",
+      "details": "- Define POST /transcriptions route using FastAPI.\n- Accept JSON payload with file_path, language, and async fields.\n- Validate file existence, absolute/container-relative path, and read permissions.\n- Check for directory traversal attempts.\n- Generate unique job_id (UUID).\n- Store job metadata in Redis (transcribe:jobs:{id}:meta, :state=QUEUED).\n- Publish initial job state to Redis stream transcribe:jobs:{id}.\n- Return 202 Accepted with job_id and state.",
+      "testStrategy": "- Unit test: input validation, Redis key creation.\n- Integration test: submit valid/invalid jobs and check Redis state.\n- Integration test: confirm FastAPI endpoint is accessible without authentication.",
+      "subtasks": []
+    },
+    {
+      "id": 4,
+      "title": "Implement Job Worker: Media Type Detection and Conversion (uv/FastAPI Environment)",
+      "description": "Worker process to detect media type and convert to 16-bit PCM WAV if necessary using FFmpeg, within the FastAPI/uv environment.",
+      "status": "pending",
+      "dependencies": [
+        3
+      ],
+      "priority": "high",
+      "details": "- Use FFprobe to detect input file type and codec.\n- If input is not WAV or not 16-bit PCM, use FFmpeg to convert: ffmpeg -i input -acodec pcm_s16le -ar 16000 output.wav.\n- Store converted file in /tmp/{job-id}/.\n- Update job state to PROCESSING in Redis and publish progress.\n- Ensure worker is compatible with the FastAPI/uv dependency environment.",
+      "testStrategy": "- Unit test: FFprobe wrapper, FFmpeg conversion.\n- Integration test: process various audio/video formats and verify output WAV.",
+      "subtasks": []
+    },
+    {
+      "id": 5,
+      "title": "Implement WAV Chunking Logic (uv/FastAPI Environment)",
+      "description": "Split the WAV file into ≤ 25 MB chunks using FFmpeg and store them in /tmp/{job-id}/, ensuring compatibility with the FastAPI/uv stack.",
+      "status": "pending",
+      "dependencies": [
+        4
+      ],
+      "priority": "high",
+      "details": "- Use FFmpeg command: ffmpeg -i input.wav -f segment -segment_time [calculated] -fs 25M /tmp/{job-id}/chunk_%03d.wav.\n- Ensure chunk size does not exceed 25 MB.\n- Store chunk file paths in memory or Redis for tracking.\n- Update Redis with chunk count and progress.",
+      "testStrategy": "- Unit test: chunking logic, file size checks.\n- Integration test: chunk various WAV files and verify chunk sizes and count.",
+      "subtasks": []
+    },
+    {
+      "id": 6,
+      "title": "Implement Parallel, Rate-Limited OpenAI Transcription Dispatch (uv/FastAPI Environment)",
+      "description": "Send chunked WAV files to OpenAI’s Speech-to-Text endpoint in parallel, respecting QPS and handling retries, using the FastAPI/uv stack.",
+      "status": "pending",
+      "dependencies": [
+        5
+      ],
+      "priority": "high",
+      "details": "- Use async/thread pool to dispatch requests in parallel (default 8-way, configurable).\n- Implement global QPS limiter (e.g., token bucket).\n- On 429/500, apply exponential backoff and retry with idempotency key.\n- Store per-chunk results and update Redis progress after each chunk.\n- Mark job as FAILED in Redis if unrecoverable error occurs.\n- Ensure all dependencies are managed via uv.",
+      "testStrategy": "- Unit test: parallel dispatch, rate limiting logic.\n- Integration test: simulate rate limits, network errors, and verify retries and progress reporting.",
+      "subtasks": []
+    },
+    {
+      "id": 7,
+      "title": "Implement Timestamp Normalization and Transcript Aggregation (uv/FastAPI Environment)",
+      "description": "Normalize chunk offsets and merge results into a single transcript.json with gap-free, increasing timestamps, using the FastAPI/uv stack.",
+      "status": "pending",
+      "dependencies": [
+        6
+      ],
+      "priority": "high",
+      "details": "- For each chunk, adjust start/end offsets by adding cumulative duration of previous chunks.\n- Concatenate text fields for full transcript.\n- Output format: { \"chunks\": [ ... ], \"text\": \"...\" }.\n- Store transcript.json in /tmp/{job-id}/ and update Redis state to COMPLETED.",
+      "testStrategy": "- Unit test: offset normalization, aggregation logic.\n- Integration test: verify merged transcript for various chunk counts.",
+      "subtasks": []
+    },
+    {
+      "id": 8,
+      "title": "Implement Job Cleanup and Resource Deletion (uv/FastAPI Environment)",
+      "description": "Delete all temporary files and chunks in /tmp/{job-id}/ after job completion or failure, ensuring compatibility with the FastAPI/uv stack.",
+      "status": "pending",
+      "dependencies": [
+        7
+      ],
+      "priority": "medium",
+      "details": "- On job COMPLETED or FAILED, recursively delete /tmp/{job-id}/ directory.\n- Ensure cleanup runs even if worker crashes (on restart, check for stale jobs).\n- Remove Redis keys after TTL expires (7 days).",
+      "testStrategy": "- Unit test: cleanup logic, directory deletion.\n- Integration test: verify /tmp/{job-id}/ is empty after job ends.",
+      "subtasks": []
+    },
+    {
+      "id": 9,
+      "title": "Implement Redis State Management and Pub/Sub for Job Progress (uv/FastAPI Environment)",
+      "description": "Persist job state, progress, and errors in Redis keys and publish updates to Redis stream for real-time subscription, using the FastAPI/uv stack.",
+      "status": "pending",
+      "dependencies": [
+        3
+      ],
+      "priority": "high",
+      "details": "- Use Redis HASH/STRING for meta, state, progress, error.\n- Use Redis STREAM for transcribe:jobs:{id} for push updates.\n- Publish state transitions and progress after each major step (QUEUED, PROCESSING, COMPLETED, FAILED).\n- Ensure atomic updates and recovery logic for crash resilience.\n- Ensure Redis client is managed via uv and compatible with FastAPI.",
+      "testStrategy": "- Unit test: Redis adapter, pub/sub logic.\n- Integration test: subscribe to stream and verify real-time updates.",
+      "subtasks": []
+    },
+    {
+      "id": 10,
+      "title": "Implement GET /jobs/{id} Endpoint (Polling and Streaming) with FastAPI",
+      "description": "Expose FastAPI endpoint to poll job status or stream updates via SSE/WebSocket, mirroring Redis messages.",
+      "status": "pending",
+      "dependencies": [
+        9
+      ],
+      "priority": "high",
+      "details": "- Support GET /jobs/{id} for polling (returns current state/progress) using FastAPI route.\n- Support GET /jobs/{id}?stream=true for SSE (text/event-stream) or WebSocket upgrade.\n- Stream JSON patches reflecting Redis pub/sub updates.\n- Handle client disconnects and reconnections gracefully.",
+      "testStrategy": "- Unit test: endpoint logic, SSE/WS upgrade.\n- Integration test: poll and stream job status, verify real-time updates.\n- Integration test: confirm FastAPI endpoint is accessible without authentication.",
+      "subtasks": []
+    },
+    {
+      "id": 11,
+      "title": "Implement DELETE /jobs/{id} Endpoint (Job Cancellation) with FastAPI",
+      "description": "Allow clients to cancel a running job via FastAPI, marking it as FAILED and cleaning up resources.",
+      "status": "pending",
+      "dependencies": [
+        9,
+        8
+      ],
+      "priority": "medium",
+      "details": "- On DELETE, set job state to FAILED in Redis and publish update.\n- Attempt to stop any in-progress chunk processing.\n- Trigger cleanup of /tmp/{job-id}/.\n- Return 202 Accepted on success.",
+      "testStrategy": "- Unit test: cancellation logic, Redis state update.\n- Integration test: cancel running job and verify cleanup and state.\n- Integration test: confirm FastAPI endpoint is accessible without authentication.",
+      "subtasks": []
+    },
+    {
+      "id": 12,
+      "title": "Implement Health, Readiness, and Metrics Endpoints with FastAPI",
+      "description": "Expose /healthz, /readyz, and /metrics endpoints using FastAPI for orchestration and observability.",
+      "status": "pending",
+      "dependencies": [
+        1
+      ],
+      "priority": "medium",
+      "details": "- /healthz: returns 200 if service is up (FastAPI route).\n- /readyz: checks Redis and OpenAI API connectivity.\n- /metrics: Prometheus format (job count, chunk latency, error counts).\n- Integrate with Docker HEALTHCHECK.\n- Ensure all endpoints are implemented as FastAPI routes and dependencies managed via uv.",
+      "testStrategy": "- Unit test: endpoint responses.\n- Integration test: simulate dependency failures and verify readiness/metrics.",
+      "subtasks": []
+    },
+    {
+      "id": 13,
+      "title": "Implement Worker Crash Recovery and Job Resumption (uv/FastAPI Environment)",
+      "description": "Ensure that if a worker crashes mid-job, it can resume processing from Redis state, using the FastAPI/uv stack.",
+      "status": "pending",
+      "dependencies": [
+        9,
+        6
+      ],
+      "priority": "medium",
+      "details": "- On startup, scan Redis for jobs in PROCESSING state.\n- Resume chunk processing for incomplete jobs.\n- Ensure idempotency for already-processed chunks.\n- Publish recovery events to Redis stream.\n- Ensure all worker dependencies are managed via uv and compatible with FastAPI.",
+      "testStrategy": "- Unit test: recovery logic, idempotency.\n- Chaos test: kill worker mid-job and verify resumption.",
+      "subtasks": []
+    },
+    {
+      "id": 14,
+      "title": "Write Unit, Integration, Load, and Chaos Tests (uv/FastAPI Environment)",
+      "description": "Develop comprehensive tests for all components as per the test plan, ensuring tests are compatible with FastAPI and uv.",
+      "status": "pending",
+      "dependencies": [
+        7,
+        10,
+        11,
+        12,
+        13
+      ],
+      "priority": "high",
+      "details": "- Unit: FFmpeg wrapper, timestamp adjuster, Redis adapter, FastAPI endpoints.\n- Integration: end-to-end jobs with various media lengths and formats.\n- Load: simulate 100 concurrent jobs, monitor scaling and memory.\n- Chaos: kill worker mid-job, verify job resumes.\n- Use CI pipeline for automated test execution.\n- Ensure test environment uses uv for dependency management and FastAPI for API testing.",
+      "testStrategy": "- Automated test suite with coverage reports.\n- Manual verification for chaos/load scenarios.\n- Integration test: confirm all FastAPI endpoints are accessible without authentication.",
+      "subtasks": []
+    },
+    {
+      "id": 15,
+      "title": "Create Docker Compose File for Multi-Container Setup (uv/FastAPI Environment)",
+      "description": "Develop a docker-compose.yml file to orchestrate the ffmpegofficial container, the FastAPI/uv-based API service, and the Reddit container, ensuring proper networking and configuration for local development and testing.",
+      "status": "pending",
+      "dependencies": [
+        12
+      ],
+      "priority": "medium",
+      "details": "1. Define services in docker-compose.yml: (a) ffmpegofficial: Use the official FFmpeg image, configure volumes if needed for media processing, and expose necessary ports. (b) api: Build from the local Dockerfile or use a prebuilt image, set environment variables (e.g., Redis connection, OpenAI keys), and link to ffmpegofficial and Reddit containers. The API service should use FastAPI as the framework and uv as the Python dependency manager. (c) reddit: Use the appropriate Reddit container image, configure authentication/secrets, and expose required ports. 2. Set up a shared network for inter-container communication. 3. Configure volumes for persistent data (e.g., /tmp, logs). 4. Add healthcheck sections for each service, leveraging the /healthz endpoint for the FastAPI API (from Task 12). 5. Ensure service dependencies (e.g., API waits for ffmpeg and Reddit to be healthy). 6. Document usage: starting, stopping, and troubleshooting the stack, including FastAPI/uv-specific notes. 7. Optionally, add support for .env files for configuration flexibility.",
+      "testStrategy": "1. Run 'docker-compose up' and verify all three containers start successfully and can communicate. 2. Confirm the API container can invoke ffmpeg commands via the ffmpegofficial service. 3. Validate the Reddit container is accessible and functional. 4. Use 'docker-compose ps' and logs to check health status and readiness. 5. Test the /healthz endpoint of the FastAPI API via curl from the host and from within other containers. 6. Stop and restart individual containers to ensure proper recovery and networking. 7. Review documentation for clarity and completeness, including FastAPI/uv usage.",
+      "subtasks": []
+    }
+  ]
+}
