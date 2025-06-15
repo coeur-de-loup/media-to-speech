@@ -1,4 +1,4 @@
-"""FFmpeg service for media processing and conversion."""
+THIS SHOULD BE A LINTER ERROR"""FFmpeg service for media processing and conversion."""
 
 import asyncio
 import json
@@ -106,7 +106,7 @@ class FFmpegService(LoggerMixin):
         try:
             # Use ffprobe to get detailed media information
             cmd = [
-                "docker", "exec", "ffmpeg",
+                "docker", "exec", "media-to-text-ffmpeg",
                 "ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams",
                 f"/workspace/{os.path.basename(file_path)}"
             ]
