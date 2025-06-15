@@ -63,7 +63,7 @@ class JobWorker(LoggerMixin):
         
         self.logger.info("Job worker stopped")
     
-    async def set_cleanup_service(self, cleanup_service: CleanupService) -> None:
+    def set_cleanup_service(self, cleanup_service: CleanupService) -> None:
         """Set the cleanup service for the job worker."""
         self.cleanup_service = cleanup_service
         self.logger.info("Cleanup service connected to job worker")

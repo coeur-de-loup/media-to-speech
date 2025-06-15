@@ -11,9 +11,10 @@ from typing import Dict, List, Optional
 from media_to_text.config import Settings
 from media_to_text.models import JobState
 from media_to_text.services.redis_service import RedisService
+from media_to_text.logging import LoggerMixin
 
 
-class CleanupService:
+class CleanupService(LoggerMixin):
     """Service for cleaning up job resources and temporary files."""
     
     def __init__(self, settings: Settings, redis_service: RedisService):
@@ -43,7 +44,7 @@ class CleanupService:
         await self.redis_service.redis.hset(cleanup_key, mapping=cleanup_metadata)
         await self.redis_service.redis.expire(cleanup_key, delay_seconds + 3600)  # Extra hour buffer
         
-        print(f"🗑️  Scheduled cleanup for job {job_id} in {delay_seconds} seconds")
+        self.logger.info(f"🗑️  Scheduled cleanup for job {job_id} in {delay_seconds} seconds")
     
     async def trigger_immediate_cleanup(self, job_id: str, job_state: JobState) -> bool:
         """
@@ -56,14 +57,14 @@ class CleanupService:
         Returns:
             True if cleanup was successful
         """
-        print(f"🧹 Starting immediate cleanup for job {job_id} (state: {job_state})")
+        self.logger.info(f"🧹 Starting immediate cleanup for job {job_id} (state: {job_state})")
         
         try:
             # Get job directory
             job_dir = os.path.join(self.settings.temp_dir, f"job_{job_id}")
             
             if not os.path.exists(job_dir):
-                print(f"✅ Job directory {job_dir} does not exist, cleanup not needed")
+                self.logger.info(f"✅ Job directory {job_dir} does not exist, cleanup not needed")
                 return True
             
             # Perform cleanup based on job state
@@ -72,7 +73,7 @@ class CleanupService:
             elif job_state in [JobState.FAILED, JobState.CANCELLED]:
                 success = await self._cleanup_failed_job(job_id, job_dir)
             else:
-                print(f"⚠️  Unexpected job state for cleanup: {job_state}")
+                self.logger.warning(f"⚠️  Unexpected job state for cleanup: {job_state}")
                 success = await self._cleanup_all_files(job_id, job_dir)
             
             # Update cleanup metadata
@@ -84,7 +85,7 @@ class CleanupService:
             return success
             
         except Exception as e:
-            print(f"❌ Cleanup failed for job {job_id}: {e}")
+            self.logger.error(f"❌ Cleanup failed for job {job_id}: {e}")
             await self._update_cleanup_status(job_id, "failed", str(e))
             return False
     
@@ -97,7 +98,7 @@ class CleanupService:
             
             if os.path.exists(transcript_file):
                 preserved_files.append("transcript.json")
-                print(f"📄 Preserving transcript.json for job {job_id}")
+                self.logger.info(f"📄 Preserving transcript.json for job {job_id}")
             
             # Remove all other files and directories
             removed_count = 0
@@ -107,22 +108,22 @@ class CleanupService:
                     if os.path.isdir(item_path):
                         shutil.rmtree(item_path)
                         removed_count += 1
-                        print(f"🗂️  Removed directory: {item}")
+                        self.logger.info(f"🗂️  Removed directory: {item}")
                     else:
                         os.remove(item_path)
                         removed_count += 1
-                        print(f"📄 Removed file: {item}")
+                        self.logger.info(f"📄 Removed file: {item}")
             
             # If no files were preserved, remove the entire directory
             if not preserved_files:
                 shutil.rmtree(job_dir)
-                print(f"🗂️  Removed entire job directory: {job_dir}")
+                self.logger.info(f"🗂️  Removed entire job directory: {job_dir}")
             
-            print(f"✅ Completed job cleanup: removed {removed_count} items")
+            self.logger.info(f"✅ Completed job cleanup: removed {removed_count} items")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to cleanup completed job {job_id}: {e}")
+            self.logger.error(f"❌ Failed to cleanup completed job {job_id}: {e}")
             return False
     
     async def _cleanup_failed_job(self, job_id: str, job_dir: str) -> bool:
@@ -130,22 +131,22 @@ class CleanupService:
         try:
             # For failed jobs, remove everything immediately
             shutil.rmtree(job_dir)
-            print(f"🗂️  Removed entire failed job directory: {job_dir}")
+            self.logger.info(f"🗂️  Removed entire failed job directory: {job_dir}")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to cleanup failed job {job_id}: {e}")
+            self.logger.error(f"❌ Failed to cleanup failed job {job_id}: {e}")
             return False
     
     async def _cleanup_all_files(self, job_id: str, job_dir: str) -> bool:
         """Remove all files for a job (fallback cleanup)."""
         try:
             shutil.rmtree(job_dir)
-            print(f"🗂️  Removed entire job directory: {job_dir}")
+            self.logger.info(f"🗂️  Removed entire job directory: {job_dir}")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to cleanup job directory {job_id}: {e}")
+            self.logger.error(f"❌ Failed to cleanup job directory {job_id}: {e}")
             return False
     
     async def _update_cleanup_status(self, job_id: str, status: str, error_message: Optional[str] = None) -> None:
@@ -169,7 +170,7 @@ class CleanupService:
         Returns:
             Number of orphaned jobs cleaned up
         """
-        print("🔍 Scanning for orphaned job directories...")
+        self.logger.info("🔍 Scanning for orphaned job directories...")
         
         orphaned_count = 0
         temp_dir = Path(self.settings.temp_dir)
@@ -190,24 +191,24 @@ class CleanupService:
                 
                 if job is None:
                     # Job not in Redis, it's orphaned
-                    print(f"🧹 Found orphaned job directory: {job_dir}")
+                    self.logger.info(f"🧹 Found orphaned job directory: {job_dir}")
                     shutil.rmtree(job_dir)
                     orphaned_count += 1
                 elif job.state in [JobState.COMPLETED, JobState.FAILED, JobState.CANCELLED]:
                     # Job is completed but directory still exists, check age
                     dir_age = time.time() - job_dir.stat().st_mtime
                     if dir_age > 3600:  # Older than 1 hour
-                        print(f"🧹 Cleaning up old completed job directory: {job_dir}")
+                        self.logger.info(f"🧹 Cleaning up old completed job directory: {job_dir}")
                         await self.trigger_immediate_cleanup(job_id, job.state)
                         orphaned_count += 1
                         
             except Exception as e:
-                print(f"⚠️  Error processing directory {job_dir}: {e}")
+                self.logger.warning(f"⚠️  Error processing directory {job_dir}: {e}")
         
         if orphaned_count > 0:
-            print(f"✅ Cleaned up {orphaned_count} orphaned job directories")
+            self.logger.info(f"✅ Cleaned up {orphaned_count} orphaned job directories")
         else:
-            print("✅ No orphaned job directories found")
+            self.logger.info("✅ No orphaned job directories found")
         
         return orphaned_count
     
@@ -218,7 +219,7 @@ class CleanupService:
         Returns:
             Number of expired keys cleaned up
         """
-        print("🔍 Scanning for expired Redis data...")
+        self.logger.info("🔍 Scanning for expired Redis data...")
         
         cleaned_count = 0
         
@@ -244,15 +245,15 @@ class CleanupService:
                                 cleaned_count += 1
                                 
                 except Exception as e:
-                    print(f"⚠️  Error processing Redis key {key}: {e}")
+                    self.logger.warning(f"⚠️  Error processing Redis key {key}: {e}")
             
             if cleaned_count > 0:
-                print(f"✅ Set expiration for {cleaned_count} Redis keys")
+                self.logger.info(f"✅ Set expiration for {cleaned_count} Redis keys")
             else:
-                print("✅ No expired Redis data found")
+                self.logger.info("✅ No expired Redis data found")
             
         except Exception as e:
-            print(f"❌ Error cleaning up Redis data: {e}")
+            self.logger.error(f"❌ Error cleaning up Redis data: {e}")
         
         return cleaned_count
     
@@ -273,14 +274,14 @@ class CleanupService:
         Returns:
             Dictionary with cleanup statistics
         """
-        print("🔧 Starting cleanup maintenance cycle...")
+        self.logger.info("🔧 Starting cleanup maintenance cycle...")
         
         stats = {
             "orphaned_directories": await self.cleanup_orphaned_jobs(),
             "expired_redis_keys": await self.cleanup_expired_redis_data()
         }
         
-        print(f"✅ Maintenance cycle complete: {stats}")
+        self.logger.info(f"✅ Maintenance cycle complete: {stats}")
         return stats
 
 
@@ -288,7 +289,7 @@ class CleanupService:
 cleanup_service: Optional[CleanupService] = None
 
 
-async def get_cleanup_service() -> CleanupService:
+def get_cleanup_service() -> CleanupService:
     """Get cleanup service instance."""
     global cleanup_service
     if cleanup_service is None:
@@ -296,7 +297,7 @@ async def get_cleanup_service() -> CleanupService:
     return cleanup_service
 
 
-async def init_cleanup_service(settings: Settings, redis_service: RedisService) -> CleanupService:
+def init_cleanup_service(settings: Settings, redis_service: RedisService) -> CleanupService:
     """Initialize cleanup service."""
     global cleanup_service
     cleanup_service = CleanupService(settings, redis_service)

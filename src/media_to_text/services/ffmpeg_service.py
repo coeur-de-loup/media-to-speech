@@ -1,4 +1,4 @@
-THIS SHOULD BE A LINTER ERROR"""FFmpeg service for media processing and conversion."""
+"""FFmpeg service for media processing and conversion."""
 
 import asyncio
 import json
@@ -185,7 +185,7 @@ class FFmpegService(LoggerMixin):
         try:
             # FFmpeg command for conversion to 16-bit PCM WAV
             cmd = [
-                "docker", "exec", "ffmpeg",
+                "docker", "exec", "media-to-text-ffmpeg",
                 "ffmpeg", "-i", f"/workspace/{os.path.basename(input_path)}",
                 "-acodec", "pcm_s16le",  # 16-bit PCM
                 "-ar", "16000",          # 16kHz sample rate
@@ -265,7 +265,7 @@ class FFmpegService(LoggerMixin):
         try:
             # Use FFmpeg segment feature for precise chunking
             cmd = [
-                "docker", "exec", "ffmpeg",
+                "docker", "exec", "media-to-text-ffmpeg",
                 "ffmpeg", "-i", wav_path,
                 "-f", "segment",
                 "-segment_time", str(chunk_duration),
@@ -303,7 +303,7 @@ class FFmpegService(LoggerMixin):
                 
                 # Get chunk duration using ffprobe
                 chunk_info_cmd = [
-                    "docker", "exec", "ffmpeg",
+                    "docker", "exec", "media-to-text-ffmpeg",
                     "ffprobe", "-v", "quiet", "-show_entries", "format=duration",
                     "-of", "csv=p=0", chunk_path
                 ]

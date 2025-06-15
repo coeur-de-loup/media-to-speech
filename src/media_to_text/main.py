@@ -57,9 +57,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         transcript_processor = init_transcript_processor()
         logger.info("Transcript processor initialized successfully")
         
-        # Initialize cleanup service
+        # Initialize cleanup service (requires redis service)
         logger.info("Initializing cleanup service")
-        cleanup_service = await init_cleanup_service(settings, redis_service)
+        cleanup_service = init_cleanup_service(settings, redis_service)
         logger.info("Cleanup service initialized successfully")
         
         # Initialize job worker (depends on all above services)
@@ -67,8 +67,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         job_worker = await init_job_worker(settings, redis_service)
         
         # Connect cleanup service to job worker
-        await job_worker.set_cleanup_service(cleanup_service)
-        logger.info("Job worker initialized with cleanup service")
+        logger.info("Connecting cleanup service to job worker")
+        job_worker.set_cleanup_service(cleanup_service)
+        logger.info("Cleanup service connected to job worker")
         
         # Run initial maintenance cycle to clean up any orphaned files
         try:
