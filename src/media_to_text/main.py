@@ -13,6 +13,9 @@ from media_to_text.routers import transcriptions, jobs, health
 from media_to_text.services.redis_service import init_redis_service, close_redis_service, get_redis_service
 from media_to_text.services.job_worker import init_job_worker, close_job_worker
 from media_to_text.services.cleanup_service import init_cleanup_service
+from media_to_text.services.ffmpeg_service import init_ffmpeg_service
+from media_to_text.services.openai_service import init_openai_service
+from media_to_text.services.transcript_service import init_transcript_processor
 
 
 @asynccontextmanager
@@ -39,12 +42,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         redis_service = await init_redis_service(settings)
         logger.info("Redis service initialized successfully")
         
+        # Initialize FFmpeg service (required by job worker)
+        logger.info("Initializing FFmpeg service")
+        ffmpeg_service = init_ffmpeg_service(settings)
+        logger.info("FFmpeg service initialized successfully")
+        
+        # Initialize OpenAI service (required by job worker)
+        logger.info("Initializing OpenAI service")
+        openai_service = init_openai_service(settings)
+        logger.info("OpenAI service initialized successfully")
+        
+        # Initialize transcript processor (required by job worker)
+        logger.info("Initializing transcript processor")
+        transcript_processor = init_transcript_processor()
+        logger.info("Transcript processor initialized successfully")
+        
         # Initialize cleanup service
         logger.info("Initializing cleanup service")
         cleanup_service = await init_cleanup_service(settings, redis_service)
         logger.info("Cleanup service initialized successfully")
         
-        # Initialize job worker
+        # Initialize job worker (depends on all above services)
         logger.info("Initializing job worker")
         job_worker = await init_job_worker(settings, redis_service)
         

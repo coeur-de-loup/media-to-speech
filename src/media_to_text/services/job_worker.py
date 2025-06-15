@@ -1,4 +1,4 @@
-"""Job worker for processing transcription jobs with crash recovery."""
+THIS SHOULD BE A LINTER ERROR"""Job worker for processing transcription jobs with crash recovery."""
 
 import asyncio
 import json
