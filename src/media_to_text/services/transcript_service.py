@@ -279,3 +279,11 @@ def get_transcript_processor() -> TranscriptProcessor:
     if transcript_processor is None:
         transcript_processor = TranscriptProcessor()
     return transcript_processor
+
+
+def init_transcript_processor() -> TranscriptProcessor:
+    """Initialize transcript processor service."""
+    global transcript_processor
+    if transcript_processor is None:
+        transcript_processor = TranscriptProcessor()
+    return transcript_processor

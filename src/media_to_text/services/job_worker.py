@@ -1,4 +1,4 @@
-THIS SHOULD BE A LINTER ERROR"""Job worker for processing transcription jobs with crash recovery."""
+"""Job worker for processing transcription jobs with crash recovery."""
 
 import asyncio
 import json
@@ -13,7 +13,7 @@ from media_to_text.logging import LoggerMixin, get_logger
 from media_to_text.models import JobMetadata, JobState
 from media_to_text.services.redis_service import RedisService
 from media_to_text.services.ffmpeg_service import FFmpegService, get_ffmpeg_service, ChunkInfo
-from media_to_text.services.openai_service import get_openai_service, OpenAITranscriptionService
+from media_to_text.services.openai_service import get_openai_service, OpenAIService
 from media_to_text.services.transcript_service import get_transcript_processor, TranscriptProcessor
 from media_to_text.services.cleanup_service import get_cleanup_service, CleanupService
 
@@ -331,7 +331,7 @@ class JobWorker(LoggerMixin):
             })
             
             # Process remaining chunks
-            transcription_results = await self.openai_service.transcribe_chunks_parallel(
+            transcription_results = await self.openai_service.transcribe_chunks(
                 chunks=remaining_chunks,
                 language=job.language,
                 job_id=job_id
@@ -501,7 +501,7 @@ class JobWorker(LoggerMixin):
             
             # Step 1: Probe media file
             self.logger.debug("Probing media file", job_id=job.job_id, file_path=job.file_path)
-            media_info = await self.ffmpeg_service.probe_media(job.file_path)
+            media_info = await self.ffmpeg_service.get_media_info(job.file_path)
             
             if not media_info.has_audio:
                 raise RuntimeError("Input file has no audio streams")
@@ -511,34 +511,29 @@ class JobWorker(LoggerMixin):
             
             if media_info.needs_conversion:
                 self.logger.info("Converting file to WAV format", job_id=job.job_id, file_path=job.file_path)
-                converted_file = os.path.join(job_dir, "converted.wav")
-                
-                await self.ffmpeg_service.convert_to_wav(job.file_path, converted_file)
+                converted_file = await self.ffmpeg_service.convert_to_wav(job.file_path, job.job_id)
                 self.logger.info("Conversion complete", job_id=job.job_id, output_path=converted_file)
             else:
                 self.logger.info("File is already in WAV format, no conversion needed", job_id=job.job_id)
             
             # Step 3: Check file size and determine chunking strategy
-            file_size_mb = await self.ffmpeg_service.get_file_size_mb(converted_file)
+            file_size_mb = os.path.getsize(converted_file) / (1024 * 1024)
             max_chunk_size_mb = self.settings.openai_max_chunk_size_mb
             
             if file_size_mb > max_chunk_size_mb:
                 self.logger.info("File size exceeds limit", job_id=job.job_id, file_size_mb=file_size_mb, max_chunk_size_mb=max_chunk_size_mb)
                 
-                # Use enhanced segment-based chunking
-                chunks_dir = os.path.join(job_dir, "chunks")
-                chunk_infos = await self.ffmpeg_service.chunk_wav_with_segments(
-                    converted_file, 
-                    chunks_dir, 
-                    max_chunk_size_mb
-                )
+                # Use FFmpeg chunking
+                chunk_infos = await self.ffmpeg_service.chunk_wav_file(converted_file, job.job_id)
                 
-                self.logger.info("Created chunks using FFmpeg segments", job_id=job.job_id, chunk_count=len(chunk_infos))
+                self.logger.info("Created chunks using FFmpeg", job_id=job.job_id, chunk_count=len(chunk_infos))
                 
-                # Validate chunk sizes
-                is_valid = await self.ffmpeg_service.validate_chunk_sizes(chunk_infos, max_chunk_size_mb)
-                if not is_valid:
-                    self.logger.warning("Some chunks exceed size limit, but proceeding", job_id=job.job_id)
+                # Validate chunk sizes manually
+                oversized_chunks = [chunk for chunk in chunk_infos if chunk.size_mb > max_chunk_size_mb]
+                if oversized_chunks:
+                    self.logger.warning("Some chunks exceed size limit, but proceeding", 
+                                       job_id=job.job_id, 
+                                       oversized_count=len(oversized_chunks))
                 
                 # Log chunk details
                 for chunk in chunk_infos:
@@ -580,7 +575,7 @@ class JobWorker(LoggerMixin):
             })
             
             # Use OpenAI service for parallel transcription
-            transcription_results = await self.openai_service.transcribe_chunks_parallel(
+            transcription_results = await self.openai_service.transcribe_chunks(
                 chunks=chunk_infos,
                 language=job.language,
                 job_id=job.job_id

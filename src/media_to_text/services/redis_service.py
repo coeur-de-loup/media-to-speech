@@ -10,7 +10,7 @@ import redis.asyncio as redis
 from redis.asyncio.client import Redis
 
 from media_to_text.config import Settings
-from media_to_text.models import JobState, JobStatus
+from media_to_text.models import JobState, JobStatus, JobMetadata
 from media_to_text.logging import LoggerMixin, get_logger
 
 
@@ -61,15 +61,17 @@ class RedisService(LoggerMixin):
         if not self.redis:
             raise RuntimeError("Redis not connected")
         
-        job_data = {
-            "id": job_id,
-            "file_path": file_path,
-            "state": JobState.QUEUED.value,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-            "progress": 0,
-            **metadata
-        }
+        # Create JobMetadata object
+        job_metadata = JobMetadata(
+            job_id=job_id,
+            file_path=file_path,
+            language=metadata.get("language", "en"),
+            state=JobState.QUEUED,
+            **{k: v for k, v in metadata.items() if k in ['original_filename', 'request_id', 'trace_id']}
+        )
+        
+        # Convert to dict for Redis storage
+        job_data = job_metadata.to_dict()
         
         job_key = self._job_key(job_id)
         
@@ -127,7 +129,7 @@ class RedisService(LoggerMixin):
                             error=str(e))
             raise
     
-    async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+    async def get_job(self, job_id: str) -> Optional[JobMetadata]:
         """Get job data by ID."""
         if not self.redis:
             raise RuntimeError("Redis not connected")
@@ -140,12 +142,15 @@ class RedisService(LoggerMixin):
                 self.logger.debug("Job not found", job_id=job_id)
                 return None
             
-            # Convert numeric fields
-            if "progress" in job_data:
-                job_data["progress"] = float(job_data["progress"])
-            
-            self.logger.debug("Job retrieved", job_id=job_id, state=job_data.get("state"))
-            return job_data
+            # Convert to JobMetadata object
+            try:
+                job_metadata = JobMetadata.from_dict(job_data)
+                self.logger.debug("Job retrieved", job_id=job_id, state=job_metadata.state.value)
+                return job_metadata
+            except Exception as e:
+                self.logger.error("Failed to parse job metadata", job_id=job_id, error=str(e))
+                return None
+                
         except Exception as e:
             self.logger.error("Failed to get job", job_id=job_id, error=str(e))
             raise
@@ -327,6 +332,78 @@ class RedisService(LoggerMixin):
             return cleaned_count
         except Exception as e:
             self.logger.error("Failed to cleanup expired jobs", error=str(e))
+            raise
+    
+    async def publish_job_update(self, job_id: str, update_data: Dict[str, Any]) -> None:
+        """Publish job update event to Redis stream."""
+        if not self.redis:
+            raise RuntimeError("Redis not connected")
+        
+        stream_key = self._stream_key(job_id)
+        
+        try:
+            # Prepare update data for stream
+            stream_data = {
+                "job_id": job_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                **{k: json.dumps(v) if isinstance(v, (dict, list)) else str(v) 
+                   for k, v in update_data.items()}
+            }
+            
+            await self.redis.xadd(stream_key, stream_data)
+            await self.redis.expire(stream_key, self.ttl_seconds)
+            
+            self.logger.debug("Job update published to stream", 
+                            job_id=job_id, 
+                            event=update_data.get("event", "unknown"))
+        except Exception as e:
+            self.logger.warning("Failed to publish job update", 
+                              job_id=job_id,
+                              error=str(e))
+    
+    async def update_job_progress(self, job_id: str, chunks_done: int, chunks_total: int) -> None:
+        """Update job progress information."""
+        if not self.redis:
+            raise RuntimeError("Redis not connected")
+        
+        job_key = self._job_key(job_id)
+        
+        try:
+            # Check if job exists
+            if not await self.redis.exists(job_key):
+                self.logger.warning("Attempted to update progress for non-existent job", job_id=job_id)
+                return
+            
+            # Calculate progress percentage
+            progress = (chunks_done / chunks_total * 100) if chunks_total > 0 else 0
+            
+            # Update job progress
+            update_data = {
+                "chunks_done": chunks_done,
+                "chunks_total": chunks_total,
+                "progress": progress,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            await self.redis.hset(job_key, mapping=update_data)
+            
+            # Publish progress update to stream
+            await self.publish_job_update(job_id, {
+                "event": "progress_update",
+                "chunks_done": chunks_done,
+                "chunks_total": chunks_total,
+                "progress": progress
+            })
+            
+            self.logger.debug("Job progress updated", 
+                            job_id=job_id, 
+                            chunks_done=chunks_done,
+                            chunks_total=chunks_total,
+                            progress=f"{progress:.1f}%")
+        except Exception as e:
+            self.logger.error("Failed to update job progress", 
+                            job_id=job_id, 
+                            error=str(e))
             raise
 
 
