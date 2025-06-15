@@ -387,37 +387,21 @@ async def list_jobs(
     
     # Convert to response models
     job_responses = []
-    for job_data in jobs:
-        # Convert dict to JobMetadata if needed
-        if isinstance(job_data, dict):
-            progress = job_data.get("progress", 0)
-            if isinstance(progress, str):
-                progress = float(progress)
-                
-            job_responses.append(JobStatusResponse(
-                job_id=job_data["id"],
-                state=JobState(job_data["state"]),
-                progress=progress / 100,  # Convert percentage to fraction
-                chunks_done=int(job_data.get("chunks_done", 0)),
-                chunks_total=int(job_data.get("chunks_total", 0)),
-                error_message=job_data.get("error_message"),
-                created_at=job_data.get("created_at")
-            ))
-        else:
-            # Already a JobMetadata object
-            progress = 0.0
-            if job_data.chunks_total > 0:
-                progress = job_data.chunks_done / job_data.chunks_total
-            
-            job_responses.append(JobStatusResponse(
-                job_id=job_data.job_id,
-                state=job_data.state,
-                progress=progress,
-                chunks_done=job_data.chunks_done,
-                chunks_total=job_data.chunks_total,
-                error_message=job_data.error_message,
-                created_at=job_data.created_at
-            ))
+    for job_metadata in jobs:
+        # Calculate progress
+        progress = 0.0
+        if job_metadata.chunks_total > 0:
+            progress = job_metadata.chunks_done / job_metadata.chunks_total
+        
+        job_responses.append(JobStatusResponse(
+            job_id=job_metadata.job_id,
+            state=job_metadata.state,
+            progress=progress,
+            chunks_done=job_metadata.chunks_done,
+            chunks_total=job_metadata.chunks_total,
+            error_message=job_metadata.error_message,
+            created_at=job_metadata.created_at
+        ))
     
     logger.info("Jobs list response prepared", 
                response_count=len(job_responses),

@@ -86,16 +86,9 @@ class JobWorker(LoggerMixin):
             recovered_count = 0
             failed_recovery_count = 0
             
-            for job_data in processing_jobs:
+            for job_metadata in processing_jobs:
                 try:
-                    # Convert dict to JobMetadata if needed
-                    if isinstance(job_data, dict):
-                        job_id = job_data.get("id")
-                        if not job_id:
-                            self.logger.warning("Job data missing ID", job_data=job_data)
-                            continue
-                    else:
-                        job_id = job_data.job_id
+                    job_id = job_metadata.job_id
                     
                     self.logger.info("Attempting to recover job", job_id=job_id)
                     
@@ -161,24 +154,10 @@ class JobWorker(LoggerMixin):
         """Resume a specific job from its current state."""
         try:
             # Get current job metadata
-            job_data = await self.redis_service.get_job(job_id)
-            if not job_data:
+            job = await self.redis_service.get_job(job_id)
+            if not job:
                 self.logger.warning("Job not found for recovery", job_id=job_id)
                 return False
-            
-            # Convert to JobMetadata if it's a dict
-            if isinstance(job_data, dict):
-                # Create a temporary JobMetadata object for processing
-                job = JobMetadata(
-                    job_id=job_data.get("id", job_id),
-                    file_path=job_data.get("file_path", ""),
-                    language=job_data.get("language", "en"),
-                    state=JobState(job_data.get("state", "QUEUED")),
-                    chunks_done=int(job_data.get("chunks_done", 0)),
-                    chunks_total=int(job_data.get("chunks_total", 0))
-                )
-            else:
-                job = job_data
             
             self.logger.info("Resuming job recovery", 
                            job_id=job_id,
@@ -459,22 +438,8 @@ class JobWorker(LoggerMixin):
                 queued_jobs = await self.redis_service.list_jobs(state_filter=JobState.QUEUED)
                 
                 if queued_jobs:
-                    # Process the oldest job
-                    job_data = queued_jobs[0]
-                    
-                    # Convert dict to JobMetadata if needed
-                    if isinstance(job_data, dict):
-                        job = JobMetadata(
-                            job_id=job_data.get("id", ""),
-                            file_path=job_data.get("file_path", ""),
-                            language=job_data.get("language", "en"),
-                            state=JobState(job_data.get("state", "QUEUED")),
-                            chunks_done=int(job_data.get("chunks_done", 0)),
-                            chunks_total=int(job_data.get("chunks_total", 0))
-                        )
-                    else:
-                        job = job_data
-                    
+                    # Process the oldest job (now always a JobMetadata object)
+                    job = queued_jobs[0]
                     await self._process_job(job)
                 else:
                     # No jobs available, wait a bit
@@ -759,23 +724,10 @@ class JobWorker(LoggerMixin):
     
     async def process_job_by_id(self, job_id: str) -> bool:
         """Process a specific job by ID (for testing/manual processing)."""
-        job_data = await self.redis_service.get_job(job_id)
-        if not job_data:
+        job = await self.redis_service.get_job(job_id)
+        if not job:
             self.logger.warning("Job not found", job_id=job_id)
             return False
-        
-        # Convert dict to JobMetadata if needed
-        if isinstance(job_data, dict):
-            job = JobMetadata(
-                job_id=job_data.get("id", job_id),
-                file_path=job_data.get("file_path", ""),
-                language=job_data.get("language", "en"),
-                state=JobState(job_data.get("state", "QUEUED")),
-                chunks_done=int(job_data.get("chunks_done", 0)),
-                chunks_total=int(job_data.get("chunks_total", 0))
-            )
-        else:
-            job = job_data
         
         if job.state != JobState.QUEUED:
             self.logger.warning("Job is not in QUEUED state", job_id=job_id, current_state=job.state)

@@ -157,7 +157,7 @@ class RedisService(LoggerMixin):
     
     async def list_jobs(self, 
                        state_filter: Optional[JobState] = None,
-                       limit: int = 100) -> List[Dict[str, Any]]:
+                       limit: int = 100) -> List[JobMetadata]:
         """List jobs with optional state filtering."""
         if not self.redis:
             raise RuntimeError("Redis not connected")
@@ -173,16 +173,20 @@ class RedisService(LoggerMixin):
             for job_key in job_keys[:limit]:
                 job_data = await self.redis.hgetall(job_key)
                 if job_data:
-                    # Convert numeric fields
-                    if "progress" in job_data:
-                        job_data["progress"] = float(job_data["progress"])
-                    
-                    # Apply state filter
+                    # Apply state filter first
                     if state_filter is None or job_data.get("state") == state_filter.value:
-                        jobs.append(job_data)
+                        # Convert to JobMetadata object
+                        try:
+                            job_metadata = JobMetadata.from_dict(job_data)
+                            jobs.append(job_metadata)
+                        except Exception as e:
+                            self.logger.warning("Failed to parse job metadata in list", 
+                                              job_key=job_key, 
+                                              error=str(e))
+                            continue
             
             # Sort by created_at descending
-            jobs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+            jobs.sort(key=lambda x: x.created_at, reverse=True)
             
             self.logger.debug("Jobs listed", 
                             count=len(jobs), 
@@ -290,7 +294,7 @@ class RedisService(LoggerMixin):
                             error=str(e))
             raise
     
-    async def get_queued_jobs(self) -> List[Dict[str, Any]]:
+    async def get_queued_jobs(self) -> List[JobMetadata]:
         """Get all jobs in QUEUED state for processing."""
         return await self.list_jobs(state_filter=JobState.QUEUED)
     
